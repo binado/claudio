@@ -3,7 +3,6 @@ use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 use crate::error::{AppError, Result};
 
@@ -42,7 +41,7 @@ impl Provider {
 }
 
 pub fn get_providers(filename: &Path) -> Result<HashMap<String, Provider>> {
-    let json = fs::read_to_string(&filename)
+    let json = fs::read_to_string(filename)
         .map_err(|_| AppError::ConfigFileNotFound(filename.to_path_buf()))?;
     let provider_config: ProviderConfig = serde_json::from_str(&json)
         .map_err(|_| AppError::ConfigParseError(filename.to_path_buf()))?;

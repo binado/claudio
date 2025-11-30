@@ -48,7 +48,7 @@ fn main() -> Result<()> {
         Some(selected_provider) => {
             let api_key = cli.get_api_key(provider)?;
             let provider_vars = selected_provider.get_env_vars(api_key);
-            vars.extend(provider_vars.into_iter());
+            vars.extend(provider_vars);
         }
         None => {
             return Err(AppError::ProviderNotFound(provider.to_string()));
