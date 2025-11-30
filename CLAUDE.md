@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`cchoose` is a Rust CLI tool that switches Claude Code model providers on the fly by setting environment variables before launching the `claude` binary. It reads provider configurations from a JSON file and injects the appropriate API endpoints and model names as environment variables.
+`claudio` is a Rust CLI tool that switches Claude Code model providers on the fly by setting environment variables before launching the `claude` binary. It reads provider configurations from a JSON file and injects the appropriate API endpoints and model names as environment variables.
 
 ## Build and Development Commands
 
@@ -108,4 +108,4 @@ The codebase uses Rust's `Result` type throughout with a custom `AppError` enum.
    - `--api-key` command line flag
    - `{PROVIDER}_API_KEY` environment variable (e.g., `ANTHROPIC_API_KEY`)
 
-6. **Default behavior**: When no provider is specified, cchoose launches `claude` with no additional environment variables, effectively acting as a pass-through wrapper.
+6. **Default behavior**: When no provider is specified, claudio launches `claude` with no additional environment variables, effectively acting as a pass-through wrapper.

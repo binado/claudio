@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use crate::error::{AppError, Result};
 
 #[derive(Parser)]
-#[command(name = "cchoose", about = "Change claude code model on the fly")]
+#[command(name = "claudio", about = "Change claude code model on the fly")]
 pub struct Cli {
     pub provider: Option<String>,
     #[arg(short = 'c', long)]
