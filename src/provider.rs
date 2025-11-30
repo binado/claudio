@@ -42,8 +42,9 @@ impl Provider {
 }
 
 pub fn get_providers(filename: &Path) -> Result<HashMap<String, Provider>> {
-    let json = fs::read_to_string(&filename).map_err(|_| AppError::ConfigFileNotFound(filename.to_path_buf()))?;
-    let provider_config: ProviderConfig =
-        serde_json::from_str(&json).map_err(|_| AppError::ConfigParseError(filename.to_path_buf()))?;
+    let json = fs::read_to_string(&filename)
+        .map_err(|_| AppError::ConfigFileNotFound(filename.to_path_buf()))?;
+    let provider_config: ProviderConfig = serde_json::from_str(&json)
+        .map_err(|_| AppError::ConfigParseError(filename.to_path_buf()))?;
     Ok(provider_config.providers)
 }
