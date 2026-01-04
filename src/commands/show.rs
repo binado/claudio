@@ -2,12 +2,18 @@ use crate::preset::loader;
 use crate::preset::resolver;
 use anyhow::{Context, Result};
 
-pub fn show(preset_name: &str, resolved: bool) -> Result<()> {
+pub fn show(preset_name: &str, resolved: bool, json_only: bool) -> Result<()> {
     let preset_path = loader::find_preset(preset_name)
         .with_context(|| format!("Could not find preset: {}", preset_name))?;
 
     let preset = loader::load_preset(&preset_path)
         .with_context(|| format!("Could not load preset: {}", preset_name))?;
+
+    if json_only {
+        let json = serde_json::to_string_pretty(&preset)?;
+        println!("{}", json);
+        return Ok(());
+    }
 
     if resolved {
         let resolved_preset = resolver::resolve_inheritance(&preset)

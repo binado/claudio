@@ -33,6 +33,10 @@ pub enum Commands {
         /// Show resolved preset
         #[arg(long)]
         resolved: bool,
+
+        /// Output raw JSON only
+        #[arg(long)]
+        json: bool,
     },
     /// Edit a preset in your default editor
     Edit {
