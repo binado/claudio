@@ -1,9 +1,9 @@
 use crate::preset::loader;
 use crate::preset::resolver;
 use anyhow::{Context, Result};
-use std::process::Command;
+use std::process::{Command, ExitCode};
 
-pub fn run(preset_name: &str, claude_args: &[String]) -> Result<i32> {
+pub fn run(preset_name: &str, claude_args: &[String]) -> Result<ExitCode> {
     let preset_path = loader::find_preset(preset_name)
         .with_context(|| format!("Could not find preset: {}", preset_name))?;
 
@@ -32,5 +32,6 @@ pub fn run(preset_name: &str, claude_args: &[String]) -> Result<i32> {
     }
 
     let status = cmd.status()?;
-    Ok(status.code().unwrap_or(1))
+    let code = status.code().unwrap_or(1);
+    Ok(ExitCode::from(code.clamp(0, 255) as u8))
 }
