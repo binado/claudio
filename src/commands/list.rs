@@ -96,12 +96,12 @@ pub fn list(
     scope: Scope,
     preset: Option<&str>,
     verbose: bool,
-    fields: &Option<Vec<String>>,
+    fields: Option<&[String]>,
 ) -> Result<()> {
     let preset_dirs = loader::get_preset_dirs_scoped(scope)?;
 
     // Validate fields once before processing any directories
-    let validated_fields = if let Some(custom_fields) = &fields {
+    let validated_fields = if let Some(custom_fields) = fields {
         Some(validate_fields(custom_fields)?)
     } else {
         None

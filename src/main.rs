@@ -30,7 +30,12 @@ fn run(cli: Cli) -> Result<ExitCode> {
             verbose,
             fields,
         } => {
-            claudio::commands::list::list(scope.scope, name.as_deref(), *verbose, fields)?;
+            claudio::commands::list::list(
+                scope.scope,
+                name.as_deref(),
+                *verbose,
+                fields.as_deref(),
+            )?;
             ExitCode::SUCCESS
         }
         Commands::Show {
