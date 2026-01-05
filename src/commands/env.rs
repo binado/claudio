@@ -5,7 +5,8 @@ use anyhow::{Context, Result};
 
 fn shell_escape_double_quoted(value: &str) -> String {
     // Escapes for use inside double quotes in common POSIX shells.
-    // We escape characters that can terminate or interpolate within double quotes.
+    // We escape characters that can terminate or interpolate within double quotes,
+    // as well as history expansion and control characters for safety.
     let mut out = String::with_capacity(value.len());
 
     for ch in value.chars() {
@@ -14,7 +15,12 @@ fn shell_escape_double_quoted(value: &str) -> String {
             '"' => out.push_str("\\\""),
             '$' => out.push_str("\\$"),
             '`' => out.push_str("\\`"),
+            '!' => out.push_str("\\!"),
             '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            c if c <= '\x1f' || c == '\x7f' => {
+                out.push_str(&format!("\\x{:02x}", c as u32));
+            }
             _ => out.push(ch),
         }
     }
