@@ -88,7 +88,13 @@ fn merge_json_settings(
         ) => {
             // Deep merge: derived overrides base
             for (key, value) in derived_obj {
-                base_obj.insert(key, value);
+                let merged_value = if let Some(base_value) = base_obj.get(&key) {
+                    merge_json_settings(Some(base_value.clone()), Some(value.clone()))
+                        .unwrap_or(value)
+                } else {
+                    value
+                };
+                base_obj.insert(key, merged_value);
             }
             Some(serde_json::Value::Object(base_obj))
         }
