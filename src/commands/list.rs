@@ -98,6 +98,13 @@ pub fn list(
 ) -> Result<()> {
     let preset_dirs = loader::get_preset_dirs_scoped(scope)?;
 
+    // Validate fields once before processing any directories
+    let validated_fields = if let Some(custom_fields) = &fields {
+        Some(validate_fields(custom_fields)?)
+    } else {
+        None
+    };
+
     for dir in &preset_dirs {
         let mut dir_presets = Vec::<(PathBuf, Preset)>::new();
 
@@ -141,9 +148,9 @@ pub fn list(
         table.load_preset(comfy_table::presets::NOTHING);
 
         // Determine which fields to display
-        let display_fields = if let Some(custom_fields) = &fields {
-            // Custom fields override verbose mode
-            validate_fields(custom_fields)?
+        let display_fields = if let Some(ref validated) = validated_fields {
+            // Use pre-validated custom fields
+            validated.clone()
         } else if verbose {
             vec![
                 "name".to_string(),
