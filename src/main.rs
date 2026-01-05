@@ -28,8 +28,16 @@ fn run(cli: Cli) -> Result<ExitCode> {
             scope,
             name,
             verbose,
+            fields,
+            prompt_max_length,
         } => {
-            claudio::commands::list::list(scope.scope, name.as_deref(), *verbose)?;
+            claudio::commands::list::list(
+                scope.scope,
+                name.as_deref(),
+                *verbose,
+                fields.as_deref(),
+                *prompt_max_length,
+            )?;
             ExitCode::SUCCESS
         }
         Commands::Show {

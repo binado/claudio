@@ -50,6 +50,16 @@ pub enum Commands {
         /// Show verbose output
         #[arg(short, long)]
         verbose: bool,
+
+        /// Custom fields to display (comma-separated or multiple flags)
+        /// Available: name, description, filepath, env, args, extends, prompt
+        /// Use "all" to display all available fields
+        #[arg(long, value_delimiter = ',')]
+        fields: Option<Vec<String>>,
+
+        /// Maximum length for prompt field before truncation (0 = no truncation)
+        #[arg(long, default_value_t = 30)]
+        prompt_max_length: usize,
     },
     /// Show details of a specific preset
     Show {
