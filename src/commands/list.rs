@@ -78,8 +78,9 @@ fn build_row(preset: &Preset, path: &Path, fields: &[String]) -> Vec<String> {
                 .prompt
                 .as_deref()
                 .map(|p| {
-                    if p.len() > PROMPT_MAX_LENGTH {
-                        format!("{}...", &p[..PROMPT_MAX_LENGTH])
+                    if p.chars().count() > PROMPT_MAX_LENGTH {
+                        let truncated: String = p.chars().take(PROMPT_MAX_LENGTH).collect();
+                        format!("{}...", truncated)
                     } else {
                         p.to_string()
                     }
