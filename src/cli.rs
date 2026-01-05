@@ -1,4 +1,21 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum Scope {
+    /// Use the default resolution behavior (project shadows user for reads).
+    Auto,
+    /// Only use project-local presets from `./.claudio/presets`.
+    Project,
+    /// Only use user presets from `~/.claudio/presets`.
+    User,
+}
+
+#[derive(Debug, Clone, Parser)]
+pub struct ScopeArgs {
+    /// Where to read/write presets from.
+    #[arg(long, value_enum, default_value_t = Scope::Auto)]
+    pub scope: Scope,
+}
 
 #[derive(Parser)]
 #[command(name = "claudio")]
@@ -15,12 +32,21 @@ pub enum Commands {
         /// Preset name to use
         preset: String,
 
+        #[command(flatten)]
+        scope: ScopeArgs,
+
         /// Additional arguments to pass to claude
         #[arg(last = true, allow_hyphen_values = true)]
         claude_args: Vec<String>,
     },
-    /// List all available presets
+    /// List all available presets (optionally filter by name)
     List {
+        /// Optional preset name to filter by (prints matching preset file paths)
+        name: Option<String>,
+
+        #[command(flatten)]
+        scope: ScopeArgs,
+
         /// Show verbose output
         #[arg(short, long)]
         verbose: bool,
@@ -29,6 +55,9 @@ pub enum Commands {
     Show {
         /// Preset name to show
         preset: String,
+
+        #[command(flatten)]
+        scope: ScopeArgs,
 
         /// Show resolved preset
         #[arg(long)]
@@ -42,16 +71,18 @@ pub enum Commands {
     Edit {
         /// Preset name to edit
         preset: String,
+
+        #[command(flatten)]
+        scope: ScopeArgs,
     },
-    /// Show the file path of a preset
-    Which {
-        /// Preset name to locate
-        preset: String,
-    },
+
     /// Print environment variables for a preset
     Env {
         /// Preset name
         preset: String,
+
+        #[command(flatten)]
+        scope: ScopeArgs,
 
         /// Format output for shell export
         #[arg(long)]

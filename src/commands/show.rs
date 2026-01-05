@@ -1,9 +1,10 @@
+use crate::cli::Scope;
 use crate::preset::loader;
 use crate::preset::resolver;
 use anyhow::{Context, Result};
 
-pub fn show(preset_name: &str, resolved: bool, json_only: bool) -> Result<()> {
-    let preset_path = loader::find_preset(preset_name)
+pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) -> Result<()> {
+    let preset_path = loader::find_preset_scoped(preset_name, scope)
         .with_context(|| format!("Could not find preset: {}", preset_name))?;
 
     let preset = loader::load_preset(&preset_path)

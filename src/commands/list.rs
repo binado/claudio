@@ -1,11 +1,20 @@
+use crate::cli::Scope;
 use crate::preset::loader;
 use crate::preset::types::Preset;
 use anyhow::Result;
 use comfy_table::Table;
 use std::path::PathBuf;
 
-pub fn list(verbose: bool) -> Result<()> {
-    let preset_dirs = loader::get_preset_dirs();
+pub fn list(scope: Scope, preset: Option<&str>, verbose: bool) -> Result<()> {
+    if let Some(preset_name) = preset {
+        let matches = loader::find_all_presets_scoped(preset_name, scope)?;
+        for preset_match in matches {
+            println!("{}", preset_match.display());
+        }
+        return Ok(());
+    }
+
+    let preset_dirs = loader::get_preset_dirs_scoped(scope)?;
 
     for dir in &preset_dirs {
         let mut dir_presets = Vec::<(PathBuf, Preset)>::new();

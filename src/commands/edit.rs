@@ -1,49 +1,86 @@
+use crate::cli::Scope;
 use crate::preset::loader;
+use crate::preset::types::Preset;
 use anyhow::{Context, Result};
-use directories::BaseDirs;
 use std::env;
 use std::process::Command;
 
-pub fn edit(preset_name: &str) -> Result<()> {
-    let preset_path = match loader::find_preset(preset_name) {
-        Ok(path) => path,
-        Err(_) => {
-            println!(
-                "Preset '{}' does not exist. Creating new preset...",
-                preset_name
-            );
-            let new_preset = serde_json::json!({
-                "name": preset_name,
-                "description": "Description of this preset",
-                "prompt": "",
-                "env": {},
-                "args": []
-            });
+pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
+    let preset_path = match scope {
+        Scope::Auto => {
+            let matches = loader::find_all_presets_scoped(preset_name, Scope::Auto)?;
+            match matches.len() {
+                0 => {
+                    let new_preset = Preset {
+                        name: preset_name.to_string(),
+                        description: Some("Description of this preset".to_string()),
+                        extends: None,
+                        prompt: Some(String::new()),
+                        env: Some(std::collections::HashMap::new()),
+                        args: Some(Vec::new()),
+                    };
 
-            let preset_dirs = loader::get_preset_dirs();
-            let target_dir = if let Some(dir) = preset_dirs.last() {
-                dir.clone()
-            } else {
-                let home = BaseDirs::new()
-                    .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
-                    .home_dir()
-                    .to_owned();
-                home.join(".claudio/presets")
-            };
+                    let target_dir = loader::get_preset_write_dir_scoped(Scope::Auto)?;
 
-            std::fs::create_dir_all(&target_dir).with_context(|| {
-                format!(
-                    "Could not create preset directory: {}",
-                    target_dir.display()
-                )
-            })?;
+                    std::fs::create_dir_all(&target_dir).with_context(|| {
+                        format!(
+                            "Could not create preset directory: {}",
+                            target_dir.display()
+                        )
+                    })?;
 
-            let new_path = target_dir.join(format!("{}.json", preset_name));
-            std::fs::write(&new_path, serde_json::to_string_pretty(&new_preset)?)
-                .with_context(|| format!("Could not write preset file: {}", new_path.display()))?;
+                    let new_path = target_dir.join(format!("{}.json", preset_name));
+                    std::fs::write(&new_path, serde_json::to_string_pretty(&new_preset)?)
+                        .with_context(|| {
+                            format!("Could not write preset file: {}", new_path.display())
+                        })?;
 
-            println!("Created new preset at: {}", new_path.display());
-            new_path
+                    new_path
+                }
+                1 => matches
+                    .into_iter()
+                    .next()
+                    .expect("matches.len() == 1 implies one element"),
+                _ => {
+                    anyhow::bail!(
+                        "Preset '{}' exists in multiple scopes. Re-run with --scope project or --scope user to choose which one to edit.",
+                        preset_name
+                    );
+                }
+            }
+        }
+        Scope::Project | Scope::User => {
+            let matches = loader::find_all_presets_scoped(preset_name, scope)?;
+            match matches.len() {
+                0 => {
+                    let new_preset = Preset {
+                        name: preset_name.to_string(),
+                        description: Some("Description of this preset".to_string()),
+                        extends: None,
+                        prompt: Some(String::new()),
+                        env: Some(std::collections::HashMap::new()),
+                        args: Some(Vec::new()),
+                    };
+
+                    let target_dir = loader::get_preset_write_dir_scoped(scope)?;
+
+                    std::fs::create_dir_all(&target_dir).with_context(|| {
+                        format!(
+                            "Could not create preset directory: {}",
+                            target_dir.display()
+                        )
+                    })?;
+
+                    let new_path = target_dir.join(format!("{}.json", preset_name));
+                    std::fs::write(&new_path, serde_json::to_string_pretty(&new_preset)?)
+                        .with_context(|| {
+                            format!("Could not write preset file: {}", new_path.display())
+                        })?;
+
+                    new_path
+                }
+                _ => loader::find_preset_scoped(preset_name, scope)?,
+            }
         }
     };
 
@@ -63,28 +100,20 @@ pub fn edit(preset_name: &str) -> Result<()> {
         .with_context(|| format!("Could not open editor '{}'", editor))?;
 
     if status.success() {
-        println!("\nValidating preset...");
         let preset = loader::load_preset(&preset_path)
             .with_context(|| format!("Preset file is invalid: {}", preset_path.display()))?;
 
         let validation = preset.validate(Some(&preset_path));
 
-        // Print warnings
-        for warning in &validation.warnings {
-            eprintln!("Warning: {}", warning);
-        }
-
-        // Print errors and fail if any
         if !validation.is_valid() {
+            for warning in &validation.warnings {
+                eprintln!("Warning: {}", warning);
+            }
             for error in &validation.errors {
                 eprintln!("Error: {}", error);
             }
             anyhow::bail!("Preset validation failed");
         }
-
-        println!("Preset validated successfully.");
-    } else {
-        println!("Editor exited with non-zero status. Skipping validation.");
     }
 
     Ok(())

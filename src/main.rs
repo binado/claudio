@@ -21,34 +21,38 @@ fn run(cli: Cli) -> Result<ExitCode> {
     let exit_code = match &cli.command {
         Commands::Run {
             preset,
+            scope,
             claude_args,
-        } => claudio::commands::run::run(preset, claude_args)?,
-        Commands::List { verbose } => {
-            claudio::commands::list::list(*verbose)?;
+        } => claudio::commands::run::run(preset, scope.scope, claude_args)?,
+        Commands::List {
+            scope,
+            name,
+            verbose,
+        } => {
+            claudio::commands::list::list(scope.scope, name.as_deref(), *verbose)?;
             ExitCode::SUCCESS
         }
         Commands::Show {
             preset,
+            scope,
             resolved,
             json,
         } => {
-            claudio::commands::show::show(preset, *resolved, *json)?;
+            claudio::commands::show::show(preset, scope.scope, *resolved, *json)?;
             ExitCode::SUCCESS
         }
-        Commands::Edit { preset } => {
-            claudio::commands::edit::edit(preset)?;
+        Commands::Edit { preset, scope } => {
+            claudio::commands::edit::edit(preset, scope.scope)?;
             ExitCode::SUCCESS
         }
-        Commands::Which { preset } => {
-            claudio::commands::which::which(preset)?;
-            ExitCode::SUCCESS
-        }
+
         Commands::Env {
             preset,
+            scope,
             export,
             resolved,
         } => {
-            claudio::commands::env::env(preset, *export, *resolved)?;
+            claudio::commands::env::env(preset, scope.scope, *export, *resolved)?;
             ExitCode::SUCCESS
         }
     };
