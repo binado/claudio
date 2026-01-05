@@ -37,10 +37,6 @@ fn validate_fields(fields: &[String]) -> Result<Vec<String>> {
         validated.push(normalized);
     }
 
-    if validated.is_empty() {
-        anyhow::bail!("At least one field must be specified");
-    }
-
     Ok(validated)
 }
 
