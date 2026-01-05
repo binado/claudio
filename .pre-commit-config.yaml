@@ -4,7 +4,7 @@ repos:
       - id: cargo-fmt
         name: cargo fmt
         description: Format Rust code with cargo fmt
-        entry: cargo fmt --all -- --check
+        entry: cargo fmt --all
         language: system
         types: [rust]
         pass_filenames: false
@@ -16,3 +16,4 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
+        stages: [pre-push]
