@@ -94,7 +94,7 @@ pub fn list(
     scope: Scope,
     preset: Option<&str>,
     verbose: bool,
-    fields: Option<Vec<String>>,
+    fields: &Option<Vec<String>>,
 ) -> Result<()> {
     let preset_dirs = loader::get_preset_dirs_scoped(scope)?;
 
