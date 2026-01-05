@@ -78,6 +78,16 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
         cmd.arg(prompt);
     }
 
+    execute_claude_command(cmd)
+}
+
+fn run_claude_directly(claude_args: &[String]) -> Result<ExitCode> {
+    let mut cmd = Command::new("claude");
+    cmd.args(claude_args);
+    execute_claude_command(cmd)
+}
+
+fn execute_claude_command(mut cmd: Command) -> Result<ExitCode> {
     let status = cmd.status().with_context(|| {
         "Failed to execute 'claude' command.\n\n\
          Make sure Claude Code is installed and available in your PATH.\n\
@@ -87,17 +97,5 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
 
     // temp_settings_file is dropped here, cleaning up the temporary file
 
-    Ok(ExitCode::from(code.clamp(0, 255) as u8))
-}
-
-fn run_claude_directly(claude_args: &[String]) -> Result<ExitCode> {
-    let mut cmd = Command::new("claude");
-    cmd.args(claude_args);
-
-    let status = cmd
-        .status()
-        .with_context(|| "Failed to execute claude command")?;
-
-    let code = status.code().unwrap_or(1);
     Ok(ExitCode::from(code.clamp(0, 255) as u8))
 }
