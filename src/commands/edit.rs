@@ -1,6 +1,5 @@
 use crate::cli::Scope;
 use crate::preset::loader;
-use crate::preset::types::Preset;
 use anyhow::{Context, Result};
 use std::env;
 use std::process::Command;
@@ -10,33 +9,7 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
         Scope::Auto => {
             let matches = loader::find_all_presets_scoped(preset_name, Scope::Auto)?;
             match matches.len() {
-                0 => {
-                    let new_preset = Preset {
-                        name: preset_name.to_string(),
-                        description: Some("Description of this preset".to_string()),
-                        extends: None,
-                        prompt: Some(String::new()),
-                        env: Some(std::collections::HashMap::new()),
-                        args: Some(Vec::new()),
-                    };
-
-                    let target_dir = loader::get_preset_write_dir_scoped(Scope::Auto)?;
-
-                    std::fs::create_dir_all(&target_dir).with_context(|| {
-                        format!(
-                            "Could not create preset directory: {}",
-                            target_dir.display()
-                        )
-                    })?;
-
-                    let new_path = target_dir.join(format!("{}.json", preset_name));
-                    std::fs::write(&new_path, serde_json::to_string_pretty(&new_preset)?)
-                        .with_context(|| {
-                            format!("Could not write preset file: {}", new_path.display())
-                        })?;
-
-                    new_path
-                }
+                0 => create_preset_scoped(preset_name, Scope::Auto)?,
                 1 => matches
                     .into_iter()
                     .next()
@@ -52,33 +25,7 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
         Scope::Project | Scope::User => {
             let matches = loader::find_all_presets_scoped(preset_name, scope)?;
             match matches.len() {
-                0 => {
-                    let new_preset = Preset {
-                        name: preset_name.to_string(),
-                        description: Some("Description of this preset".to_string()),
-                        extends: None,
-                        prompt: Some(String::new()),
-                        env: Some(std::collections::HashMap::new()),
-                        args: Some(Vec::new()),
-                    };
-
-                    let target_dir = loader::get_preset_write_dir_scoped(scope)?;
-
-                    std::fs::create_dir_all(&target_dir).with_context(|| {
-                        format!(
-                            "Could not create preset directory: {}",
-                            target_dir.display()
-                        )
-                    })?;
-
-                    let new_path = target_dir.join(format!("{}.json", preset_name));
-                    std::fs::write(&new_path, serde_json::to_string_pretty(&new_preset)?)
-                        .with_context(|| {
-                            format!("Could not write preset file: {}", new_path.display())
-                        })?;
-
-                    new_path
-                }
+                0 => create_preset_scoped(preset_name, scope)?,
                 _ => loader::find_preset_scoped(preset_name, scope)?,
             }
         }
@@ -117,4 +64,26 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn create_preset_scoped(preset_name: &str, scope: Scope) -> Result<std::path::PathBuf> {
+    let new_preset = loader::default_preset(preset_name);
+
+    let target_dir = loader::get_preset_write_dir_scoped(scope)?;
+
+    // Ensure directory exists before writing.
+    std::fs::create_dir_all(&target_dir).with_context(|| {
+        format!(
+            "Could not create preset directory: {}",
+            target_dir.display()
+        )
+    })?;
+
+    let new_path = loader::preset_path_for_name(&target_dir, preset_name);
+
+    // Atomic write to avoid partial files on interruption.
+    loader::write_preset_atomic(&new_path, &new_preset)
+        .with_context(|| format!("Could not write preset file: {}", new_path.display()))?;
+
+    Ok(new_path)
 }
