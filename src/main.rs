@@ -1,59 +1,64 @@
-mod cli;
-mod error;
-mod provider;
+use anyhow::Result;
+use clap::Parser;
+use std::process::ExitCode;
 
-use std::collections::HashMap;
-use std::env;
-use std::path::PathBuf;
-use std::process;
+use claudio::cli::Cli;
+use claudio::cli::Commands;
 
-use crate::cli::get_cli;
-use crate::error::{AppError, Result};
+fn main() -> ExitCode {
+    let cli = Cli::parse();
 
-const CLAUDE_BINARY: &str = "claude";
-
-fn get_config_file() -> PathBuf {
-    let home_dir = env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home_dir)
-        .join(".claude")
-        .join("providers.json")
-}
-
-fn launch_claude(vars: HashMap<String, String>, args: &[String]) -> Result<()> {
-    let status = process::Command::new(CLAUDE_BINARY)
-        .envs(&vars)
-        .args(args)
-        .status()
-        .map_err(|e| AppError::ProcessLaunchFailed(e.to_string()))?;
-
-    process::exit(status.code().unwrap_or(1));
-}
-
-fn main() -> Result<()> {
-    let cli = get_cli();
-
-    let provider = cli.provider.as_deref().unwrap_or("");
-    if provider.is_empty() {
-        let _ = launch_claude(HashMap::new(), &cli.args);
-        return Ok(());
-    }
-
-    let config_file = cli.config_file.clone().unwrap_or_else(get_config_file);
-
-    let providers = provider::get_providers(&config_file)
-        .map_err(|_| AppError::ConfigParseError(config_file))?;
-
-    let mut vars: HashMap<String, String> = HashMap::new();
-    match providers.get(provider) {
-        Some(selected_provider) => {
-            let api_key = cli.get_api_key(provider)?;
-            let provider_vars = selected_provider.get_env_vars(api_key);
-            vars.extend(provider_vars);
-        }
-        None => {
-            return Err(AppError::ProviderNotFound(provider.to_string()));
+    match run(cli) {
+        Ok(code) => code,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            ExitCode::FAILURE
         }
     }
-    _ = launch_claude(vars, &cli.args);
-    Ok(())
+}
+
+fn run(cli: Cli) -> Result<ExitCode> {
+    let exit_code = match &cli.command {
+        Commands::Run {
+            preset,
+            scope,
+            claude_args,
+        } => claudio::commands::run::run(preset, scope.scope, claude_args)?,
+        Commands::List {
+            scope,
+            name,
+            verbose,
+        } => {
+            claudio::commands::list::list(scope.scope, name.as_deref(), *verbose)?;
+            ExitCode::SUCCESS
+        }
+        Commands::Show {
+            preset,
+            scope,
+            resolved,
+            json,
+        } => {
+            claudio::commands::show::show(preset, scope.scope, *resolved, *json)?;
+            ExitCode::SUCCESS
+        }
+        Commands::Edit { preset, scope } => {
+            claudio::commands::edit::edit(preset, scope.scope)?;
+            ExitCode::SUCCESS
+        }
+        Commands::Init { scope } => {
+            claudio::commands::init::init(scope.scope)?;
+            ExitCode::SUCCESS
+        }
+        Commands::Env {
+            preset,
+            scope,
+            export,
+            resolved,
+        } => {
+            claudio::commands::env::env(preset, scope.scope, *export, *resolved)?;
+            ExitCode::SUCCESS
+        }
+    };
+
+    Ok(exit_code)
 }
