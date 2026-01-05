@@ -81,7 +81,6 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
             }
         };
 
-        eprintln!("Error: editor '{}' failed ({})", editor, detail);
         anyhow::bail!("Editor '{}' failed ({})", editor, detail);
     }
 
