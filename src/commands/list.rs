@@ -193,10 +193,12 @@ pub fn list(
     }
 
     if skipped_count > 0 && !verbose {
-        eprintln!(
-            "({} invalid preset file(s) skipped, use --verbose to see details)",
-            skipped_count
-        );
+        let msg = if skipped_count == 1 {
+            "1 invalid preset file skipped".to_string()
+        } else {
+            format!("{} invalid preset files skipped", skipped_count)
+        };
+        eprintln!("({}, use --verbose to see details)", msg);
     }
 
     Ok(())
