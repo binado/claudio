@@ -48,7 +48,7 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
     }
 
     // Add settings via temporary file if present (more secure than command-line args)
-    let temp_settings_file = if let Some(settings) = &resolved.settings {
+    let _temp_settings_file = if let Some(settings) = &resolved.settings {
         let settings_json = serde_json::to_string_pretty(settings)
             .context("Failed to serialize settings to JSON")?;
 
@@ -81,9 +81,7 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
     let status = cmd.status()?;
     let code = status.code().unwrap_or(1);
 
-    // Note: temp_settings_file is dropped here, which removes the temporary file
-    // (tempfile::NamedTempFile cleans itself up on drop)
-    drop(temp_settings_file);
+    // temp_settings_file is dropped here, cleaning up the temporary file
 
     Ok(ExitCode::from(code.clamp(0, 255) as u8))
 }
