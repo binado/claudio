@@ -35,13 +35,16 @@ pub fn resolve_variables(preset: &Preset) -> Result<HashMap<String, String>> {
 pub fn resolve_settings_variables(settings: &serde_json::Value) -> Result<serde_json::Value> {
     match settings {
         serde_json::Value::Object(obj) => {
-            let mut resolved_obj = serde_json::json!({});
+            let mut resolved_map = serde_json::Map::new();
             for (key, value) in obj {
-                resolved_obj[key] = resolve_settings_value(value)?;
+                resolved_map.insert(key.clone(), resolve_settings_value(value)?);
             }
-            Ok(resolved_obj)
+            Ok(serde_json::Value::Object(resolved_map))
         }
-        other => Ok(other.clone()),
+        other => {
+            let resolved = resolve_settings_value(other)?;
+            Ok(resolved)
+        }
     }
 }
 
