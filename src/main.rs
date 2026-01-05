@@ -45,7 +45,10 @@ fn run(cli: Cli) -> Result<ExitCode> {
             claudio::commands::edit::edit(preset, scope.scope)?;
             ExitCode::SUCCESS
         }
-
+        Commands::Init { scope } => {
+            claudio::commands::init::init(scope.scope)?;
+            ExitCode::SUCCESS
+        }
         Commands::Env {
             preset,
             scope,

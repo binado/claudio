@@ -75,7 +75,11 @@ pub enum Commands {
         #[command(flatten)]
         scope: ScopeArgs,
     },
-
+    /// Initialize a project-local preset directory at `<project-root>/.claudio/presets`
+    Init {
+        #[command(flatten)]
+        scope: ScopeArgs,
+    },
     /// Print environment variables for a preset
     Env {
         /// Preset name
