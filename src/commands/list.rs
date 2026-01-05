@@ -160,6 +160,7 @@ pub fn list(
                 "env".to_string(),
                 "args".to_string(),
                 "extends".to_string(),
+                "prompt".to_string(),
             ]
         } else {
             vec![
