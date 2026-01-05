@@ -3,6 +3,7 @@ use crate::preset::loader;
 use crate::preset::types::Preset;
 use anyhow::Result;
 use comfy_table::Table;
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 const PROMPT_MAX_LENGTH: usize = 30;
@@ -149,11 +150,11 @@ pub fn list(
         table.load_preset(comfy_table::presets::NOTHING);
 
         // Determine which fields to display
-        let display_fields = if let Some(ref validated) = validated_fields {
-            // Use pre-validated custom fields
-            validated.clone()
+        let display_fields: Cow<[String]> = if let Some(ref validated) = validated_fields {
+            // Use pre-validated custom fields (borrowed, no allocation)
+            Cow::Borrowed(validated)
         } else if verbose {
-            vec![
+            Cow::Owned(vec![
                 "name".to_string(),
                 "description".to_string(),
                 "filepath".to_string(),
@@ -161,13 +162,13 @@ pub fn list(
                 "args".to_string(),
                 "extends".to_string(),
                 "prompt".to_string(),
-            ]
+            ])
         } else {
-            vec![
+            Cow::Owned(vec![
                 "name".to_string(),
                 "description".to_string(),
                 "filepath".to_string(),
-            ]
+            ])
         };
 
         // Set headers based on display_fields
