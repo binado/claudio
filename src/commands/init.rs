@@ -3,11 +3,11 @@ use crate::preset::loader;
 use anyhow::{Context, Result};
 
 pub fn init(scope: Scope) -> Result<()> {
-    // For init, we only meaningfully support initializing the project directory.
-    // If the user passes `auto`, we treat it as `project` to match expectations:
-    // "init" should set up a project-local directory.
+    // For init, we support initializing either the project directory or the
+    // user directory. If the user passes `auto`, we treat it as `user` so that
+    // `claudio init --scope auto` works even when no project root is detected.
     let scope = match scope {
-        Scope::Auto => Scope::Project,
+        Scope::Auto => Scope::User,
         other => other,
     };
 
