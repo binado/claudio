@@ -22,14 +22,14 @@ fn validate_fields(fields: &[String]) -> Result<Vec<String>> {
     // return all valid fields immediately without validating individual entries.
     let has_all = fields
         .iter()
-        .any(|field| field.to_lowercase().trim() == "all");
+        .any(|field| field.trim().eq_ignore_ascii_case("all"));
     if has_all {
         return Ok(VALID_FIELDS.iter().map(|s| s.to_string()).collect());
     }
 
     let mut validated = Vec::new();
     for field in fields {
-        let normalized = field.to_lowercase().trim().to_string();
+        let normalized = field.trim().to_lowercase();
         if !VALID_FIELDS.contains(&normalized.as_str()) {
             anyhow::bail!(
                 "Invalid field '{}'. Valid fields: {}, all",
