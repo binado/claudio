@@ -6,8 +6,6 @@ use comfy_table::Table;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-const PROMPT_MAX_LENGTH: usize = 30;
-
 fn validate_fields(fields: &[String]) -> Result<Vec<String>> {
     const VALID_FIELDS: &[&str] = &[
         "name",
@@ -57,7 +55,12 @@ fn field_to_header(field: &str) -> &str {
     }
 }
 
-fn build_row(preset: &Preset, path: &Path, fields: &[String]) -> Vec<String> {
+fn build_row(
+    preset: &Preset,
+    path: &Path,
+    fields: &[String],
+    prompt_max_length: usize,
+) -> Vec<String> {
     fields
         .iter()
         .map(|field| match field.as_str() {
@@ -79,8 +82,8 @@ fn build_row(preset: &Preset, path: &Path, fields: &[String]) -> Vec<String> {
                 .prompt
                 .as_deref()
                 .map(|p| {
-                    if p.chars().count() > PROMPT_MAX_LENGTH {
-                        let truncated: String = p.chars().take(PROMPT_MAX_LENGTH).collect();
+                    if prompt_max_length > 0 && p.chars().count() > prompt_max_length {
+                        let truncated: String = p.chars().take(prompt_max_length).collect();
                         format!("{}...", truncated)
                     } else {
                         p.to_string()
@@ -97,6 +100,7 @@ pub fn list(
     preset: Option<&str>,
     verbose: bool,
     fields: Option<&[String]>,
+    prompt_max_length: usize,
 ) -> Result<()> {
     let preset_dirs = loader::get_preset_dirs_scoped(scope)?;
 
@@ -177,7 +181,7 @@ pub fn list(
 
         // Build rows dynamically based on display_fields
         for (path, preset_obj) in &dir_presets {
-            let row = build_row(preset_obj, path, &display_fields);
+            let row = build_row(preset_obj, path, &display_fields, prompt_max_length);
             table.add_row(row);
         }
 
