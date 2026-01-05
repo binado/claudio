@@ -23,7 +23,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
             preset,
             scope,
             claude_args,
-        } => claudio::commands::run::run(preset, scope.scope, claude_args)?,
+        } => claudio::commands::run::run(preset.as_deref(), scope.scope, claude_args)?,
         Commands::List {
             scope,
             name,
