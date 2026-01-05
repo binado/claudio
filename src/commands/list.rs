@@ -3,7 +3,7 @@ use crate::preset::loader;
 use crate::preset::types::Preset;
 use anyhow::Result;
 use comfy_table::Table;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const PROMPT_MAX_LENGTH: usize = 30;
 
@@ -56,7 +56,7 @@ fn field_to_header(field: &str) -> &str {
     }
 }
 
-fn build_row(preset: &Preset, path: &PathBuf, fields: &[String]) -> Vec<String> {
+fn build_row(preset: &Preset, path: &Path, fields: &[String]) -> Vec<String> {
     fields
         .iter()
         .map(|field| match field.as_str() {
