@@ -14,11 +14,21 @@ pub fn list(scope: Scope, preset: Option<&str>, verbose: bool) -> Result<()> {
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().is_some_and(|e| e == "json")
-                    && let Ok(preset_obj) = loader::load_preset(&path)
-                {
-                    if preset.is_none() || preset_obj.name == preset.unwrap() {
-                        dir_presets.push((path, preset_obj));
+
+                if !path.extension().is_some_and(|e| e == "json") {
+                    continue;
+                }
+
+                match loader::load_preset(&path) {
+                    Ok(preset_obj) => {
+                        if preset.is_none() || preset_obj.name == preset.unwrap() {
+                            dir_presets.push((path, preset_obj));
+                        }
+                    }
+                    Err(err) => {
+                        if verbose {
+                            eprintln!("Warning: invalid preset file: {} ({})", path.display(), err);
+                        }
                     }
                 }
             }

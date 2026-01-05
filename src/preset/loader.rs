@@ -53,9 +53,51 @@ pub fn load_preset(path: &Path) -> Result<Preset> {
         .with_context(|| format!("Failed to parse preset file: {}", path.display()))
 }
 
+pub fn default_preset(name: &str) -> Preset {
+    Preset {
+        name: name.to_string(),
+        description: Some("Description of this preset".to_string()),
+        extends: None,
+        prompt: Some(String::new()),
+        env: Some(std::collections::HashMap::new()),
+        args: Some(Vec::new()),
+    }
+}
+
+pub fn preset_path_for_name(dir: &Path, name: &str) -> PathBuf {
+    dir.join(format!("{}.json", name))
+}
+
+pub fn write_preset_atomic(path: &Path, preset: &Preset) -> Result<()> {
+    let parent = path.parent().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Could not determine parent directory for preset file: {}",
+            path.display()
+        )
+    })?;
+    std::fs::create_dir_all(parent)
+        .with_context(|| format!("Could not create preset directory: {}", parent.display()))?;
+
+    let json = serde_json::to_string_pretty(preset)?;
+
+    let file_name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| anyhow::anyhow!("Invalid preset filename: {}", path.display()))?;
+
+    let tmp_path = parent.join(format!(".{}.tmp", file_name));
+    std::fs::write(&tmp_path, json)
+        .with_context(|| format!("Could not write preset file: {}", tmp_path.display()))?;
+
+    std::fs::rename(&tmp_path, path)
+        .with_context(|| format!("Could not replace preset file: {}", path.display()))?;
+
+    Ok(())
+}
+
 pub fn find_preset(name: &str) -> Result<PathBuf> {
     for dir in get_preset_dirs() {
-        let path = dir.join(format!("{}.json", name));
+        let path = preset_path_for_name(&dir, name);
         if path.exists() {
             return Ok(path);
         }
@@ -65,7 +107,7 @@ pub fn find_preset(name: &str) -> Result<PathBuf> {
 
 pub fn find_preset_scoped(name: &str, scope: Scope) -> Result<PathBuf> {
     for dir in get_preset_dirs_scoped(scope)? {
-        let path = dir.join(format!("{}.json", name));
+        let path = preset_path_for_name(&dir, name);
         if path.exists() {
             return Ok(path);
         }
@@ -76,7 +118,7 @@ pub fn find_preset_scoped(name: &str, scope: Scope) -> Result<PathBuf> {
 pub fn find_all_presets(name: &str) -> Vec<PathBuf> {
     let mut matches = Vec::new();
     for dir in get_preset_dirs() {
-        let path = dir.join(format!("{}.json", name));
+        let path = preset_path_for_name(&dir, name);
         if path.exists() {
             matches.push(path);
         }
@@ -87,7 +129,7 @@ pub fn find_all_presets(name: &str) -> Vec<PathBuf> {
 pub fn find_all_presets_scoped(name: &str, scope: Scope) -> Result<Vec<PathBuf>> {
     let mut matches = Vec::new();
     for dir in get_preset_dirs_scoped(scope)? {
-        let path = dir.join(format!("{}.json", name));
+        let path = preset_path_for_name(&dir, name);
         if path.exists() {
             matches.push(path);
         }
@@ -97,13 +139,13 @@ pub fn find_all_presets_scoped(name: &str, scope: Scope) -> Result<Vec<PathBuf>>
 
 /// Returns the directory where new presets should be created/edited for a given scope.
 ///
-/// - `Scope::Project`: `./.claudio/presets`
+/// - `Scope::Project`: `<project-root>/.claudio/presets`
 /// - `Scope::User`: `~/.claudio/presets`
-/// - `Scope::Auto`: prefers project-local `./.claudio/presets` when CWD is available, otherwise user
+/// - `Scope::Auto`: prefers project-local `<project-root>/.claudio/presets` when a project root is detected, otherwise user
 pub fn get_preset_write_dir_scoped(scope: Scope) -> Result<PathBuf> {
     match scope {
         Scope::Project => get_project_preset_dir()
-            .ok_or_else(|| anyhow::anyhow!("Could not determine current directory")),
+            .ok_or_else(|| anyhow::anyhow!("Could not determine project root")),
 
         Scope::User => Ok(get_user_preset_dir()?),
 
@@ -120,8 +162,8 @@ pub fn get_preset_write_dir_scoped(scope: Scope) -> Result<PathBuf> {
 /// Returns the directory where new presets should be created/edited.
 ///
 /// Preference order:
-/// 1) Project-local `.claudio/presets` (if we can determine CWD)
-/// 2) User-global `~/.claudio/presets` (if we can determine home)
+/// 1) Project-local `<project-root>/.claudio/presets` (if we can determine a project root)
+/// 2) User-global `~/.claudio/presets`
 pub fn get_preset_write_dir() -> Result<PathBuf> {
     get_preset_write_dir_scoped(Scope::Auto)
 }
@@ -144,7 +186,7 @@ pub fn get_preset_dirs_scoped(scope: Scope) -> Result<Vec<PathBuf>> {
         Scope::Project => {
             dirs.push(
                 get_project_preset_dir()
-                    .ok_or_else(|| anyhow::anyhow!("Could not determine current directory"))?,
+                    .ok_or_else(|| anyhow::anyhow!("Could not determine project root"))?,
             );
         }
         Scope::User => {
