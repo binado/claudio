@@ -81,8 +81,8 @@ fn resolve_inheritance_recursive(
 
     visited_set.remove(&preset.name);
 
-    let source_path =
-        loader::find_preset(&preset.name).unwrap_or_else(|_| std::path::PathBuf::from("unknown"));
+    let source_path = loader::find_preset(&preset.name)
+        .with_context(|| format!("Could not find preset source path: {}", preset.name))?;
 
     Ok(ResolvedPreset {
         name: preset.name.clone(),
