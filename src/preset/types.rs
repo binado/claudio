@@ -82,10 +82,10 @@ impl Preset {
             }
         }
 
-        if let Some(prompt) = self.prompt.as_deref() {
-            if prompt.is_empty() {
-                result.add_warning("prompt is empty");
-            }
+        if let Some(prompt) = self.prompt.as_deref()
+            && prompt.is_empty()
+        {
+            result.add_warning("prompt is empty");
         }
 
         if let Some(path) = path
