@@ -24,13 +24,13 @@ fn shell_escape_double_quoted(value: &str) -> String {
 
 pub fn env(preset_name: &str, scope: Scope, export: bool, resolved: bool) -> Result<()> {
     let preset_path = loader::find_preset_scoped(preset_name, scope)
-        .with_context(|| format!("Could not find preset: {}", preset_name))?;
+        .with_context(|| format!("Failed to find preset: {}", preset_name))?;
 
     let preset = loader::load_preset(&preset_path)
-        .with_context(|| format!("Could not load preset: {}", preset_name))?;
+        .with_context(|| format!("Failed to load preset: {}", preset_name))?;
 
     let resolved_preset = resolver::resolve_inheritance(&preset)
-        .with_context(|| format!("Could not resolve preset: {}", preset_name))?;
+        .with_context(|| format!("Failed to resolve preset: {}", preset_name))?;
 
     if export {
         for (key, value) in &resolved_preset.env {

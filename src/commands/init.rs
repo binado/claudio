@@ -19,7 +19,7 @@ pub fn init(scope: Scope) -> Result<()> {
 
     std::fs::create_dir_all(&preset_dir).with_context(|| {
         format!(
-            "Could not create preset directory: {}",
+            "Failed to create preset directory: {}",
             preset_dir.display()
         )
     })?;

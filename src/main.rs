@@ -11,7 +11,7 @@ fn main() -> ExitCode {
     match run(cli) {
         Ok(code) => code,
         Err(e) => {
-            eprintln!("Error: {}", e);
+            eprintln!("Error: {:#}", e);
             ExitCode::FAILURE
         }
     }

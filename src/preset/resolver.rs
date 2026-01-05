@@ -16,8 +16,12 @@ pub fn resolve_variables(preset: &Preset) -> Result<HashMap<String, String>> {
             // Check all variables exist before replacement
             for caps in VAR_REGEX.captures_iter(value) {
                 let var_name = &caps[1];
-                std::env::var(var_name)
-                    .with_context(|| format!("Environment variable '{}' not found", var_name))?;
+                std::env::var(var_name).with_context(|| {
+                    format!(
+                        "Environment variable '{}' is not set.\n\nSet it with:\n  export {}=your_value",
+                        var_name, var_name
+                    )
+                })?;
             }
 
             // Now replace (we know all vars exist)
@@ -125,7 +129,10 @@ fn resolve_inheritance_recursive(
             .cloned()
             .chain(std::iter::once(preset.name.clone()))
             .collect();
-        anyhow::bail!("Circular inheritance detected: {}", chain.join(" -> "));
+        anyhow::bail!(
+            "Circular inheritance detected: {}\n\nCheck the 'extends' field in these presets for a circular dependency.",
+            chain.join(" -> ")
+        );
     }
 
     visited_set.insert(preset.name.clone());
@@ -137,7 +144,7 @@ fn resolve_inheritance_recursive(
 
     if let Some(base_name) = &preset.extends {
         let base_path = loader::find_preset(base_name)
-            .with_context(|| format!("Could not find base preset: {}", base_name))?;
+            .with_context(|| format!("Failed to find base preset: {}", base_name))?;
         let base_preset = loader::load_preset(&base_path)
             .with_context(|| format!("Failed to load base preset: {}", base_name))?;
 
@@ -165,7 +172,7 @@ fn resolve_inheritance_recursive(
     visited_set.remove(&preset.name);
 
     let source_path = loader::find_preset(&preset.name)
-        .with_context(|| format!("Could not find preset source path: {}", preset.name))?;
+        .with_context(|| format!("Failed to find preset source path: {}", preset.name))?;
 
     // Resolve variable substitutions in settings
     let resolved_settings = if let Some(s) = settings {

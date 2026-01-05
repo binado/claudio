@@ -5,10 +5,10 @@ use anyhow::{Context, Result};
 
 pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) -> Result<()> {
     let preset_path = loader::find_preset_scoped(preset_name, scope)
-        .with_context(|| format!("Could not find preset: {}", preset_name))?;
+        .with_context(|| format!("Failed to find preset: {}", preset_name))?;
 
     let preset = loader::load_preset(&preset_path)
-        .with_context(|| format!("Could not load preset: {}", preset_name))?;
+        .with_context(|| format!("Failed to load preset: {}", preset_name))?;
 
     if json_only {
         let json = serde_json::to_string_pretty(&preset)?;
@@ -18,7 +18,7 @@ pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) ->
 
     if resolved {
         let resolved_preset = resolver::resolve_inheritance(&preset)
-            .with_context(|| format!("Could not resolve preset: {}", preset_name))?;
+            .with_context(|| format!("Failed to resolve preset: {}", preset_name))?;
 
         println!("Configuration: {} (resolved)", preset_name);
         println!("Location: {}\n", preset_path.display());
