@@ -4,6 +4,9 @@ use anyhow::{Context, Result};
 use std::env;
 use std::process::Command;
 
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+
 pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
     let preset_path = match scope {
         Scope::Auto => {
@@ -61,6 +64,25 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
             }
             anyhow::bail!("Preset validation failed");
         }
+    } else {
+        let detail = if let Some(code) = status.code() {
+            format!("exit code {}", code)
+        } else {
+            #[cfg(unix)]
+            {
+                status
+                    .signal()
+                    .map(|sig| format!("signal {}", sig))
+                    .unwrap_or_else(|| "unknown termination".to_string())
+            }
+            #[cfg(not(unix))]
+            {
+                "unknown termination".to_string()
+            }
+        };
+
+        eprintln!("Error: editor '{}' failed ({})", editor, detail);
+        anyhow::bail!("Editor '{}' failed ({})", editor, detail);
     }
 
     Ok(())
