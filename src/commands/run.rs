@@ -2,6 +2,7 @@ use crate::cli::Scope;
 use crate::preset::loader;
 use crate::preset::resolver;
 use anyhow::{Context, Result};
+use std::fs;
 use std::process::{Command, ExitCode};
 
 pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> Result<ExitCode> {
@@ -46,13 +47,27 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
         cmd.arg(arg);
     }
 
-    // Add settings as JSON via --settings flag if present
-    if let Some(settings) = &resolved.settings {
-        let settings_json =
-            serde_json::to_string(settings).context("Failed to serialize settings to JSON")?;
+    // Add settings via temporary file if present (more secure than command-line args)
+    let temp_settings_file = if let Some(settings) = &resolved.settings {
+        let settings_json = serde_json::to_string_pretty(settings)
+            .context("Failed to serialize settings to JSON")?;
+
+        // Create a temporary file in the system temp directory
+        let temp_file =
+            tempfile::NamedTempFile::new().context("Failed to create temporary settings file")?;
+        let temp_path = temp_file.path().to_path_buf();
+
+        // Write settings to the temporary file
+        fs::write(&temp_path, settings_json)
+            .context("Failed to write settings to temporary file")?;
+
         cmd.arg("--settings");
-        cmd.arg(settings_json);
-    }
+        cmd.arg(&temp_path);
+
+        Some(temp_file)
+    } else {
+        None
+    };
 
     for arg in claude_args {
         cmd.arg(arg);
@@ -64,6 +79,11 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
 
     let status = cmd.status()?;
     let code = status.code().unwrap_or(1);
+
+    // Note: temp_settings_file is dropped here, which removes the temporary file
+    // (tempfile::NamedTempFile cleans itself up on drop)
+    drop(temp_settings_file);
+
     Ok(ExitCode::from(code.clamp(0, 255) as u8))
 }
 

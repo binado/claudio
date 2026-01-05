@@ -747,7 +747,10 @@ Generic Claude Code settings passed via the `--settings` flag. This field suppor
 ```
 
 **Behavior:**
-- Settings are serialized to JSON and passed to Claude via `--settings <json>`
+- Settings are serialized to JSON and passed to Claude via `--settings <path>`
+- Settings are written to a temporary file in the system temp directory for security
+  - Prevents sensitive data (API keys, tokens) from appearing in process listings
+  - The temporary file is automatically cleaned up after Claude execution
 - All JSON types are supported: strings, numbers, booleans, arrays, and objects
 - Variable substitution happens recursively through nested structures
 - Settings from base presets are deeply merged with derived preset settings
@@ -917,7 +920,8 @@ claudio run quick-commit
 **Usage:**
 ```bash
 claudio run code-review
-# Executes: claude --verbose --settings <json with model, permission-mode, allowed-tools, etc.>
+# Executes: claude --verbose --settings /tmp/claudio-settings-XXXX.json
+# (settings are written to a temporary file for security)
 ```
 
 ---

@@ -53,7 +53,7 @@ pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) ->
         println!("\nCommand that would be executed:");
         let args_str = resolved_preset.args.join(" ");
         if resolved_preset.settings.is_some() {
-            println!("  claude {} --settings <json>", args_str);
+            println!("  claude {} --settings <temp-file>", args_str);
         } else {
             println!("  claude {}", args_str);
         }
