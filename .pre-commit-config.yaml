@@ -4,10 +4,11 @@ repos:
       - id: cargo-fmt
         name: cargo fmt
         description: Format Rust code with cargo fmt
-        entry: cargo fmt --all
+        entry: cargo fmt --all -- --check
         language: system
         types: [rust]
         pass_filenames: false
+        stages: [pre-commit]
 
       - id: cargo-clippy
         name: cargo clippy

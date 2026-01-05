@@ -215,9 +215,9 @@ cargo install --locked prek
 prek install
 ```
 
-This will set up pre-commit hooks that automatically run:
-- `cargo fmt` - Code formatting check
-- `cargo clippy` - Linting
+This will set up git hooks that automatically run:
+- `cargo fmt` - Code formatting check (pre-commit)
+- `cargo clippy` - Linting (pre-push)
 
 ### Building and Testing
 
