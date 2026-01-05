@@ -203,6 +203,24 @@ claudio local --api-key test-key
 
 ## Development
 
+### Setup
+
+After cloning the repository, install git hooks using [prek](https://github.com/j178/prek):
+
+```bash
+# Install prek
+cargo install --locked prek
+
+# Install git hooks
+prek install
+```
+
+This will set up git hooks that automatically run:
+- `cargo fmt` - Code formatting check (pre-commit)
+- `cargo clippy` - Linting (pre-push)
+
+### Building and Testing
+
 ```bash
 # Build
 cargo build
