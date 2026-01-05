@@ -2,7 +2,7 @@ use crate::cli::Scope;
 use crate::preset::loader;
 use crate::preset::resolver;
 use anyhow::{Context, Result};
-use std::fs;
+use std::io::Write;
 use std::process::{Command, ExitCode};
 
 pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> Result<ExitCode> {
@@ -53,14 +53,15 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
             .context("Failed to serialize settings to JSON")?;
 
         // Create a temporary file in the system temp directory
-        let temp_file =
+        let mut temp_file =
             tempfile::NamedTempFile::new().context("Failed to create temporary settings file")?;
-        let temp_path = temp_file.path().to_path_buf();
 
-        // Write settings to the temporary file
-        fs::write(&temp_path, settings_json)
+        // Write settings directly through the file handle (avoids race condition)
+        temp_file
+            .write_all(settings_json.as_bytes())
             .context("Failed to write settings to temporary file")?;
 
+        let temp_path = temp_file.path().to_path_buf();
         cmd.arg("--settings");
         cmd.arg(&temp_path);
 
