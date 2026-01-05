@@ -6,14 +6,6 @@ use comfy_table::Table;
 use std::path::PathBuf;
 
 pub fn list(scope: Scope, preset: Option<&str>, verbose: bool) -> Result<()> {
-    if let Some(preset_name) = preset {
-        let matches = loader::find_all_presets_scoped(preset_name, scope)?;
-        for preset_match in matches {
-            println!("{}", preset_match.display());
-        }
-        return Ok(());
-    }
-
     let preset_dirs = loader::get_preset_dirs_scoped(scope)?;
 
     for dir in &preset_dirs {
@@ -23,9 +15,11 @@ pub fn list(scope: Scope, preset: Option<&str>, verbose: bool) -> Result<()> {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.extension().is_some_and(|e| e == "json")
-                    && let Ok(preset) = loader::load_preset(&path)
+                    && let Ok(preset_obj) = loader::load_preset(&path)
                 {
-                    dir_presets.push((path, preset));
+                    if preset.is_none() || preset_obj.name == preset.unwrap() {
+                        dir_presets.push((path, preset_obj));
+                    }
                 }
             }
         }
@@ -59,19 +53,19 @@ pub fn list(scope: Scope, preset: Option<&str>, verbose: bool) -> Result<()> {
             table.set_header(vec!["Name", "Description", "Filepath"]);
         }
 
-        for (path, preset) in &dir_presets {
-            let desc = preset.description.as_deref().unwrap_or("");
+        for (path, preset_obj) in &dir_presets {
+            let desc = preset_obj.description.as_deref().unwrap_or("");
 
             let mut row = vec![
-                preset.name.clone(),
+                preset_obj.name.clone(),
                 desc.to_string(),
                 path.display().to_string(),
             ];
 
             if verbose {
-                let env_count = preset.env.as_ref().map(|e| e.len()).unwrap_or(0);
-                let args_count = preset.args.as_ref().map(|a| a.len()).unwrap_or(0);
-                let extends = preset.extends.as_deref().unwrap_or("none");
+                let env_count = preset_obj.env.as_ref().map(|e| e.len()).unwrap_or(0);
+                let args_count = preset_obj.args.as_ref().map(|a| a.len()).unwrap_or(0);
+                let extends = preset_obj.extends.as_deref().unwrap_or("none");
 
                 row.extend([
                     env_count.to_string(),
