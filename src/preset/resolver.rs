@@ -70,11 +70,11 @@ fn resolve_settings_value(value: &serde_json::Value) -> Result<serde_json::Value
             Ok(serde_json::Value::Array(resolved?))
         }
         serde_json::Value::Object(obj) => {
-            let mut resolved_obj = serde_json::json!({});
+            let mut resolved_map = serde_json::Map::new();
             for (key, val) in obj {
-                resolved_obj[key] = resolve_settings_value(val)?;
+                resolved_map.insert(key.clone(), resolve_settings_value(val)?);
             }
-            Ok(resolved_obj)
+            Ok(serde_json::Value::Object(resolved_map))
         }
         other => Ok(other.clone()),
     }
