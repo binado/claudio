@@ -46,6 +46,14 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
         cmd.arg(arg);
     }
 
+    // Add settings as JSON via --settings flag if present
+    if let Some(settings) = &resolved.settings {
+        let settings_json =
+            serde_json::to_string(settings).context("Failed to serialize settings to JSON")?;
+        cmd.arg("--settings");
+        cmd.arg(settings_json);
+    }
+
     for arg in claude_args {
         cmd.arg(arg);
     }

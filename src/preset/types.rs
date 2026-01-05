@@ -10,6 +10,7 @@ pub struct Preset {
     pub prompt: Option<String>,
     pub env: Option<HashMap<String, String>>,
     pub args: Option<Vec<String>>,
+    pub settings: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -19,6 +20,7 @@ pub struct ResolvedPreset {
     pub prompt: Option<String>,
     pub env: HashMap<String, String>,
     pub args: Vec<String>,
+    pub settings: Option<serde_json::Value>,
     pub source_path: PathBuf,
 }
 
@@ -86,6 +88,13 @@ impl Preset {
             && prompt.is_empty()
         {
             result.add_warning("prompt is empty");
+        }
+
+        if let Some(settings) = &self.settings {
+            // Validate that settings is an object (dict-like)
+            if !settings.is_object() {
+                result.add_error("settings must be a JSON object");
+            }
         }
 
         if let Some(path) = path

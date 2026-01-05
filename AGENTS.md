@@ -519,7 +519,10 @@ Each preset is stored as a separate JSON file in one of the preset directories. 
   "env": {
     "ENV_VAR_NAME": "value"
   },
-  "args": ["array", "of", "strings"]
+  "args": ["array", "of", "strings"],
+  "settings": {
+    "setting_name": "value or array or object"
+  }
 }
 ```
 
@@ -711,6 +714,50 @@ Command-line arguments to pass to the `claude` binary. These are appended to the
 
 ---
 
+#### `settings` (optional, object)
+Generic Claude Code settings passed via the `--settings` flag. This field supports any arbitrary settings that Claude Code accepts, including but not limited to: models, permissions, allowed tools, and custom configurations.
+
+**Supports variable substitution:**
+- `${VAR_NAME}` - Substitutes the value of environment variable `VAR_NAME` in string values
+- Works recursively through nested objects and arrays
+- If the referenced environment variable doesn't exist, an error is raised
+
+**Example:**
+```json
+{
+  "settings": {
+    "model": "sonnet",
+    "permission-mode": "acceptEdits",
+    "allowed-tools": ["Bash", "Edit", "Read"],
+    "system-prompt": "You are a helpful coding assistant",
+    "max-budget-usd": 10
+  }
+}
+```
+
+**Variable substitution in settings:**
+```json
+{
+  "settings": {
+    "system-prompt": "${CUSTOM_SYSTEM_PROMPT}",
+    "allowed-tools": ["Bash", "Edit", "Read"],
+    "max-budget-usd": 5
+  }
+}
+```
+
+**Behavior:**
+- Settings are serialized to JSON and passed to Claude via `--settings <json>`
+- All JSON types are supported: strings, numbers, booleans, arrays, and objects
+- Variable substitution happens recursively through nested structures
+- Settings from base presets are deeply merged with derived preset settings
+
+**Inheritance:**
+- When a preset extends another, settings are merged (derived preset overrides base)
+- Both nested objects are combined, with the derived preset's values taking precedence
+
+---
+
 ### Complete Example Configurations
 
 #### Example 1: Anthropic (default)
@@ -846,6 +893,78 @@ claudio run quick-commit
 
 ---
 
+#### Example 6: With settings
+**File:** `~/.claudio/presets/code-review.json`
+
+```json
+{
+  "name": "code-review",
+  "description": "Code review preset with custom settings",
+  "settings": {
+    "model": "opus",
+    "permission-mode": "acceptEdits",
+    "allowed-tools": ["Bash", "Edit", "Read", "Grep"],
+    "system-prompt": "You are an expert code reviewer focusing on maintainability and security",
+    "max-budget-usd": 5
+  },
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "${ANTHROPIC_API_KEY}"
+  },
+  "args": ["--verbose"]
+}
+```
+
+**Usage:**
+```bash
+claudio run code-review
+# Executes: claude --verbose --settings <json with model, permission-mode, allowed-tools, etc.>
+```
+
+---
+
+#### Example 7: Settings with inheritance
+**Base config:** `~/.claudio/presets/base-settings.json`
+
+```json
+{
+  "name": "base-settings",
+  "description": "Base configuration with common settings",
+  "settings": {
+    "permission-mode": "default",
+    "allowed-tools": ["Bash", "Edit", "Read", "Write"]
+  }
+}
+```
+
+**Derived config:** `~/.claudio/presets/safe-mode.json`
+
+```json
+{
+  "name": "safe-mode",
+  "description": "Safe mode with restricted tools",
+  "extends": "base-settings",
+  "settings": {
+    "allowed-tools": ["Read"],
+    "max-budget-usd": 2
+  }
+}
+```
+
+**Resolved result:**
+```json
+{
+  "settings": {
+    "permission-mode": "default",
+    "allowed-tools": ["Read"],
+    "max-budget-usd": 2
+  }
+}
+```
+
+Note: The `allowed-tools` from the derived preset completely overrides the base preset's value.
+
+---
+
 ### Validation Rules
 
 1. **Valid JSON** - Preset files must be valid JSON
@@ -854,9 +973,12 @@ claudio run quick-commit
    - `name`, `description`, `extends`, `prompt`: strings
    - `env`: object with string values
    - `args`: array of strings
+   - `settings`: object (can contain any JSON types for values)
 4. **Variable substitution** - Referenced environment variables must exist at runtime
+   - Applies to `env` string values and `settings` values (recursively)
 5. **Circular inheritance** - `extends` chains must not create cycles
 6. **File name match** - `name` field should match filename (warning only)
+7. **Settings must be object** - `settings` field must be a JSON object if present
 
 ---
 
