@@ -29,8 +29,8 @@ pub struct Cli {
 pub enum Commands {
     /// Run Claude Code with a specific preset
     Run {
-        /// Preset name to use
-        preset: String,
+        /// Preset name to use (defaults to "default" preset if available)
+        preset: Option<String>,
 
         #[command(flatten)]
         scope: ScopeArgs,
