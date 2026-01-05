@@ -5,7 +5,98 @@ use anyhow::Result;
 use comfy_table::Table;
 use std::path::PathBuf;
 
-pub fn list(scope: Scope, preset: Option<&str>, verbose: bool) -> Result<()> {
+const PROMPT_MAX_LENGTH: usize = 30;
+
+fn validate_fields(fields: &[String]) -> Result<Vec<String>> {
+    const VALID_FIELDS: &[&str] = &[
+        "name",
+        "description",
+        "filepath",
+        "env",
+        "args",
+        "extends",
+        "prompt",
+    ];
+
+    let mut validated = Vec::new();
+    for field in fields {
+        let normalized = field.to_lowercase().trim().to_string();
+
+        // Handle "all" special case
+        if normalized == "all" {
+            return Ok(VALID_FIELDS.iter().map(|s| s.to_string()).collect());
+        }
+
+        if !VALID_FIELDS.contains(&normalized.as_str()) {
+            anyhow::bail!(
+                "Invalid field '{}'. Valid fields: {}, all",
+                field,
+                VALID_FIELDS.join(", ")
+            );
+        }
+        validated.push(normalized);
+    }
+
+    if validated.is_empty() {
+        anyhow::bail!("At least one field must be specified");
+    }
+
+    Ok(validated)
+}
+
+fn field_to_header(field: &str) -> &str {
+    match field {
+        "name" => "Name",
+        "description" => "Description",
+        "filepath" => "Filepath",
+        "env" => "Env Vars",
+        "args" => "Args",
+        "extends" => "Extends",
+        "prompt" => "Prompt",
+        _ => field,
+    }
+}
+
+fn build_row(preset: &Preset, path: &PathBuf, fields: &[String]) -> Vec<String> {
+    fields
+        .iter()
+        .map(|field| match field.as_str() {
+            "name" => preset.name.clone(),
+            "description" => preset.description.as_deref().unwrap_or("").to_string(),
+            "filepath" => path.display().to_string(),
+            "env" => preset
+                .env
+                .as_ref()
+                .map(|e| e.keys().map(|k| k.as_str()).collect::<Vec<_>>().join(", "))
+                .unwrap_or_default(),
+            "args" => preset
+                .args
+                .as_ref()
+                .map(|a| a.join(", "))
+                .unwrap_or_default(),
+            "extends" => preset.extends.as_deref().unwrap_or("none").to_string(),
+            "prompt" => preset
+                .prompt
+                .as_deref()
+                .map(|p| {
+                    if p.len() > PROMPT_MAX_LENGTH {
+                        format!("{}...", &p[..PROMPT_MAX_LENGTH])
+                    } else {
+                        p.to_string()
+                    }
+                })
+                .unwrap_or_default(),
+            _ => String::new(),
+        })
+        .collect()
+}
+
+pub fn list(
+    scope: Scope,
+    preset: Option<&str>,
+    verbose: bool,
+    fields: Option<Vec<String>>,
+) -> Result<()> {
     let preset_dirs = loader::get_preset_dirs_scoped(scope)?;
 
     for dir in &preset_dirs {
@@ -50,40 +141,34 @@ pub fn list(scope: Scope, preset: Option<&str>, verbose: bool) -> Result<()> {
         let mut table = Table::new();
         table.load_preset(comfy_table::presets::NOTHING);
 
-        if verbose {
-            table.set_header(vec![
-                "Name",
-                "Description",
-                "Filepath",
-                "Env Vars",
-                "Args",
-                "Extends",
-            ]);
+        // Determine which fields to display
+        let display_fields = if let Some(custom_fields) = &fields {
+            // Custom fields override verbose mode
+            validate_fields(custom_fields)?
+        } else if verbose {
+            vec![
+                "name".to_string(),
+                "description".to_string(),
+                "filepath".to_string(),
+                "env".to_string(),
+                "args".to_string(),
+                "extends".to_string(),
+            ]
         } else {
-            table.set_header(vec!["Name", "Description", "Filepath"]);
-        }
+            vec![
+                "name".to_string(),
+                "description".to_string(),
+                "filepath".to_string(),
+            ]
+        };
 
+        // Set headers based on display_fields
+        let headers: Vec<&str> = display_fields.iter().map(|f| field_to_header(f)).collect();
+        table.set_header(headers);
+
+        // Build rows dynamically based on display_fields
         for (path, preset_obj) in &dir_presets {
-            let desc = preset_obj.description.as_deref().unwrap_or("");
-
-            let mut row = vec![
-                preset_obj.name.clone(),
-                desc.to_string(),
-                path.display().to_string(),
-            ];
-
-            if verbose {
-                let env_count = preset_obj.env.as_ref().map(|e| e.len()).unwrap_or(0);
-                let args_count = preset_obj.args.as_ref().map(|a| a.len()).unwrap_or(0);
-                let extends = preset_obj.extends.as_deref().unwrap_or("none");
-
-                row.extend([
-                    env_count.to_string(),
-                    args_count.to_string(),
-                    extends.to_string(),
-                ]);
-            }
-
+            let row = build_row(preset_obj, path, &display_fields);
             table.add_row(row);
         }
 

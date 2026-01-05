@@ -50,6 +50,12 @@ pub enum Commands {
         /// Show verbose output
         #[arg(short, long)]
         verbose: bool,
+
+        /// Custom fields to display (comma-separated or multiple flags)
+        /// Available: name, description, filepath, env, args, extends, prompt
+        /// Use "all" to display all available fields
+        #[arg(long, value_delimiter = ',')]
+        fields: Option<Vec<String>>,
     },
     /// Show details of a specific preset
     Show {
