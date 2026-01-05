@@ -199,12 +199,18 @@ pub fn get_preset_dirs_scoped(scope: Scope) -> Result<Vec<PathBuf>> {
 
 pub fn get_preset_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    if let Ok(cwd) = std::env::current_dir() {
+
+    if let Some(project_dir) = get_project_preset_dir() {
+        dirs.push(project_dir);
+    } else if let Ok(cwd) = std::env::current_dir() {
+        // Fallback to immediate CWD-based location if we can't detect a project root.
         dirs.push(cwd.join(".claudio").join("presets"));
     }
+
     if let Some(home) = BaseDirs::new() {
         dirs.push(home.home_dir().join(".claudio").join("presets"));
     }
+
     dirs
 }
 
