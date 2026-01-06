@@ -1,4 +1,5 @@
 use crate::cli::Scope;
+use crate::color::ColorConfig;
 use crate::preset::loader;
 use crate::preset::types::Preset;
 use anyhow::Result;
@@ -101,6 +102,7 @@ pub fn list(
     verbose: bool,
     fields: Option<&[String]>,
     prompt_max_length: usize,
+    color_config: &ColorConfig,
 ) -> Result<()> {
     let preset_dirs = loader::get_preset_dirs_scoped(scope)?;
 
@@ -179,7 +181,10 @@ pub fn list(
         };
 
         // Set headers based on display_fields
-        let headers: Vec<&str> = display_fields.iter().map(|f| field_to_header(f)).collect();
+        let headers: Vec<String> = display_fields
+            .iter()
+            .map(|f| color_config.highlight(field_to_header(f)))
+            .collect();
         table.set_header(headers);
 
         // Build rows dynamically based on display_fields

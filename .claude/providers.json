@@ -1,0 +1,10 @@
+{
+    "providers": {
+        "minimax": {
+            "api_endpoint": "https://api.minimax.io/anthropic",
+            "opus_model": "MiniMax-M2",
+            "sonnet_model": "MiniMax-M2",
+            "haiku_model": "MiniMax-M2"
+        }
+    }
+}
