@@ -11,6 +11,7 @@ use claudio::preset::loader;
 use claudio::preset::resolver;
 use claudio::preset::types::Preset;
 use common::TestEnvironment;
+use serial_test::serial;
 use std::collections::HashMap;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18,6 +19,7 @@ use std::collections::HashMap;
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_resolve_preset_with_env_substitution() {
     // Set up environment variable for test
     unsafe {
@@ -69,6 +71,7 @@ fn test_resolve_preset_missing_env_var() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_multiple_vars_in_single_value() {
     unsafe {
         std::env::set_var("TEST_MULTI_HOST", "example.com");
@@ -104,6 +107,7 @@ fn test_resolve_multiple_vars_in_single_value() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_resolve_settings_with_variables() {
     unsafe {
         std::env::set_var("TEST_SETTINGS_VAR", "resolved-value");
@@ -125,6 +129,7 @@ fn test_resolve_settings_with_variables() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_nested_settings_with_variables() {
     unsafe {
         std::env::set_var("TEST_NESTED_SETTING", "nested-value");
@@ -146,6 +151,7 @@ fn test_resolve_nested_settings_with_variables() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_array_settings_with_variables() {
     unsafe {
         std::env::set_var("TEST_ARRAY_VAR", "array-value");

@@ -6,12 +6,14 @@ use claudio::cli::Scope;
 use claudio::settings::loader as settings_loader;
 use claudio::settings::types::Settings;
 use common::TestEnvironment;
+use serial_test::serial;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings Loading Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_load_empty_settings() {
     let env = TestEnvironment::new();
 
@@ -37,6 +39,7 @@ fn test_load_empty_settings() {
 }
 
 #[test]
+#[serial]
 fn test_load_settings_with_default_preset() {
     let env = TestEnvironment::new();
 
@@ -61,6 +64,7 @@ fn test_load_settings_with_default_preset() {
 }
 
 #[test]
+#[serial]
 fn test_load_settings_with_all_options() {
     let env = TestEnvironment::new();
 
@@ -94,6 +98,7 @@ fn test_load_settings_with_all_options() {
 }
 
 #[test]
+#[serial]
 fn test_load_nonexistent_settings() {
     let env = TestEnvironment::new();
     // Don't create any settings file
@@ -116,6 +121,7 @@ fn test_load_nonexistent_settings() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_load_settings_with_inline_presets() {
     let env = TestEnvironment::new();
 
@@ -153,6 +159,7 @@ fn test_load_settings_with_inline_presets() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_resolve_default_preset_user_only() {
     let env = TestEnvironment::new();
 
@@ -175,6 +182,7 @@ fn test_resolve_default_preset_user_only() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_color_setting() {
     let env = TestEnvironment::new();
 
@@ -197,6 +205,7 @@ fn test_resolve_color_setting() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_require_preset_setting() {
     let env = TestEnvironment::new();
 
@@ -230,6 +239,7 @@ fn test_settings_validate_empty_presets() {
 }
 
 #[test]
+#[serial]
 fn test_settings_validate_invalid_inline_preset() {
     let env = TestEnvironment::new();
 

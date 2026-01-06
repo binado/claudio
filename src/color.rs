@@ -89,6 +89,7 @@ impl ColorConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     // ─────────────────────────────────────────────────────────────────────────────
     // HighlightColor tests
@@ -159,6 +160,7 @@ mod tests {
     // ─────────────────────────────────────────────────────────────────────────────
 
     #[test]
+    #[serial]
     fn test_color_config_new_enabled() {
         // Ensure NO_COLOR is not set for this test
         unsafe {
@@ -177,6 +179,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_color_config_highlight_enabled() {
         unsafe {
             std::env::remove_var("NO_COLOR");

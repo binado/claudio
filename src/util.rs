@@ -72,6 +72,7 @@ pub fn get_claudio_home() -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::env;
 
     /// Tests for `get_claudio_home` that modify `CLAUDIO_HOME_DIR`.
@@ -79,6 +80,7 @@ mod tests {
     /// These tests are combined into a single test function to prevent race conditions
     /// when running tests in parallel, since they all modify the same environment variable.
     #[test]
+    #[serial]
     fn test_get_claudio_home() {
         // Test 1: Valid environment variable with existing directory
         {

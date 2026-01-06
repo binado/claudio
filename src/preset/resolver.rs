@@ -196,6 +196,7 @@ fn resolve_inheritance_recursive(
 mod tests {
     use super::*;
     use serde_json::json;
+    use serial_test::serial;
 
     // ─────────────────────────────────────────────────────────────────────────────
     // resolve_variables tests
@@ -239,6 +240,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_variables_single_substitution() {
         // Set up test environment variable
         unsafe {
@@ -259,6 +261,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_variables_multiple_substitutions() {
         unsafe {
             std::env::set_var("TEST_HOST", "example.com");
@@ -323,6 +326,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_settings_value_string_with_var() {
         unsafe {
             std::env::set_var("TEST_SETTING_VAR", "resolved_value");
@@ -337,6 +341,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_settings_value_array() {
         unsafe {
             std::env::set_var("TEST_ARR_VAR", "item2");
@@ -352,6 +357,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_settings_value_nested_object() {
         unsafe {
             std::env::set_var("TEST_NESTED_VAR", "deep_value");
@@ -385,6 +391,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_resolve_settings_variables_object() {
         unsafe {
             std::env::set_var("TEST_OBJ_VAR", "obj_value");

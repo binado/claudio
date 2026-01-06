@@ -3,6 +3,7 @@
 mod common;
 
 use common::TestEnvironment;
+use serial_test::serial;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -57,6 +58,7 @@ fn test_cli_version() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_cli_init_creates_directories() {
     let env = TestEnvironment::new();
 
@@ -93,6 +95,7 @@ fn test_cli_init_creates_directories() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_cli_list_empty() {
     let env = TestEnvironment::new();
 
@@ -107,6 +110,7 @@ fn test_cli_list_empty() {
 }
 
 #[test]
+#[serial]
 fn test_cli_list_with_presets() {
     let env = TestEnvironment::new();
 
@@ -129,6 +133,7 @@ fn test_cli_list_with_presets() {
 }
 
 #[test]
+#[serial]
 fn test_cli_list_verbose() {
     let env = TestEnvironment::new();
 
@@ -153,6 +158,7 @@ fn test_cli_list_verbose() {
 }
 
 #[test]
+#[serial]
 fn test_cli_list_with_fields() {
     let env = TestEnvironment::new();
 
@@ -185,6 +191,7 @@ fn test_cli_list_with_fields() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_cli_show_preset() {
     let env = TestEnvironment::new();
 
@@ -208,6 +215,7 @@ fn test_cli_show_preset() {
 }
 
 #[test]
+#[serial]
 fn test_cli_show_json_output() {
     let env = TestEnvironment::new();
 
@@ -231,6 +239,7 @@ fn test_cli_show_json_output() {
 }
 
 #[test]
+#[serial]
 fn test_cli_show_nonexistent() {
     let env = TestEnvironment::new();
 
@@ -250,6 +259,7 @@ fn test_cli_show_nonexistent() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_cli_add_existing_preset_fails() {
     let env = TestEnvironment::new();
 
@@ -277,6 +287,7 @@ fn test_cli_add_existing_preset_fails() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_cli_env_command() {
     let env = TestEnvironment::new();
 
@@ -302,6 +313,7 @@ fn test_cli_env_command() {
 }
 
 #[test]
+#[serial]
 fn test_cli_env_export_format() {
     let env = TestEnvironment::new();
 
@@ -336,6 +348,7 @@ fn test_cli_env_export_format() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
+#[serial]
 fn test_cli_no_color_flag() {
     let env = TestEnvironment::new();
 
