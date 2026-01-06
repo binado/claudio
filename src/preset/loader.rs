@@ -259,6 +259,17 @@ fn get_project_preset_dir() -> Option<PathBuf> {
     Some(root.join(".claudio").join("presets"))
 }
 
+/// Finds the project root by searching upward from a starting path.
+///
+/// This function walks up the directory tree starting from the `start` path until it locates
+/// a project root marker (either a `.claudio` or `.git` directory). It stops and returns `None`
+/// if it reaches the filesystem root without finding any markers.
+///
+/// # Arguments
+/// * `start` - The starting directory to search from.
+///
+/// # Returns
+/// * `Option<PathBuf>` - `Some(root)` when a project root is found, `None` otherwise.
 pub fn find_project_root(start: &Path) -> Option<PathBuf> {
     let mut dir = start;
 
