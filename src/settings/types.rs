@@ -13,6 +13,22 @@ pub struct Settings {
     /// Inline preset definitions (can be used instead of separate files)
     #[serde(default)]
     pub presets: Vec<Preset>,
+
+    /// Default highlight color (overrides CLI default)
+    #[serde(default)]
+    pub color: Option<String>,
+
+    /// Disable colored output by default
+    #[serde(default)]
+    pub no_color: Option<bool>,
+
+    /// If true, error when no preset is available instead of running bare claude
+    #[serde(default)]
+    pub require_preset: Option<bool>,
+
+    /// If true, ignore user-level presets (only honored in project settings)
+    #[serde(default)]
+    pub ignore_user_presets: Option<bool>,
 }
 
 impl Settings {

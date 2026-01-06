@@ -2,26 +2,54 @@ use anyhow::Result;
 use clap::Parser;
 use std::process::ExitCode;
 
-use claudio::cli::Cli;
 use claudio::cli::Commands;
+use claudio::cli::{Cli, Scope};
 use claudio::color::{ColorConfig, HighlightColor};
+use claudio::settings::loader as settings_loader;
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    // Initialize color config
-    let highlight_color = match HighlightColor::parse(&cli.color) {
+    // Determine the scope for settings lookup (default to Auto for global settings)
+    let settings_scope = match &cli.command {
+        Commands::Run { scope, .. }
+        | Commands::List { scope, .. }
+        | Commands::Show { scope, .. }
+        | Commands::Edit { scope, .. }
+        | Commands::Init { scope }
+        | Commands::Env { scope, .. } => scope.scope,
+    };
+
+    // Initialize color config with settings as defaults, CLI flags override
+    let settings_color = settings_loader::resolve_color(settings_scope)
+        .ok()
+        .flatten();
+    let settings_no_color = settings_loader::resolve_no_color(settings_scope)
+        .ok()
+        .flatten()
+        .unwrap_or(false);
+
+    // CLI --color flag uses "cyan" as default, so we only use settings if CLI is at default
+    let effective_color = if cli.color == "cyan" {
+        settings_color.as_deref().unwrap_or("cyan")
+    } else {
+        &cli.color
+    };
+
+    let highlight_color = match HighlightColor::parse(effective_color) {
         Some(color) => color,
         None => {
             eprintln!(
                 "Warning: invalid color '{}'; falling back to Cyan.",
-                cli.color
+                effective_color
             );
             HighlightColor::Cyan
         }
     };
 
-    let color_config = ColorConfig::new(highlight_color, !cli.no_color);
+    // CLI --no-color flag overrides settings (if CLI flag is set, use it; otherwise use settings)
+    let no_color = cli.no_color || settings_no_color;
+    let color_config = ColorConfig::new(highlight_color, !no_color);
 
     match run(cli, color_config.clone()) {
         Ok(code) => code,
@@ -38,9 +66,24 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
         Commands::Run {
             preset,
             scope,
+            require_preset,
             claude_args,
         } => {
-            claudio::commands::run::run(preset.as_deref(), scope.scope, claude_args, &color_config)?
+            // Check for ignore_user_presets conflict with --scope user
+            if scope.scope == Scope::User && settings_loader::should_ignore_user_presets()? {
+                anyhow::bail!(
+                    "Cannot use --scope user: project settings have 'ignore_user_presets' enabled.\n\n\
+                     Remove the --scope flag or update your project settings."
+                );
+            }
+
+            claudio::commands::run::run(
+                preset.as_deref(),
+                scope.scope,
+                *require_preset,
+                claude_args,
+                &color_config,
+            )?
         }
         Commands::List {
             scope,

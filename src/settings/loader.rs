@@ -85,6 +85,70 @@ pub fn load_inline_preset(
     Ok(None)
 }
 
+/// Resolve the color setting considering scope precedence
+///
+/// For `Scope::Auto`: project settings take precedence over user settings
+pub fn resolve_color(scope: Scope) -> Result<Option<String>> {
+    match scope {
+        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.color)),
+        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.color)),
+        Scope::Auto => {
+            if let Some(project_settings) = load_settings(Scope::Project)?
+                && let Some(color) = project_settings.color
+            {
+                return Ok(Some(color));
+            }
+            Ok(load_settings(Scope::User)?.and_then(|s| s.color))
+        }
+    }
+}
+
+/// Resolve the no_color setting considering scope precedence
+///
+/// For `Scope::Auto`: project settings take precedence over user settings
+pub fn resolve_no_color(scope: Scope) -> Result<Option<bool>> {
+    match scope {
+        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.no_color)),
+        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.no_color)),
+        Scope::Auto => {
+            if let Some(project_settings) = load_settings(Scope::Project)?
+                && let Some(no_color) = project_settings.no_color
+            {
+                return Ok(Some(no_color));
+            }
+            Ok(load_settings(Scope::User)?.and_then(|s| s.no_color))
+        }
+    }
+}
+
+/// Resolve the require_preset setting considering scope precedence
+///
+/// For `Scope::Auto`: project settings take precedence over user settings
+pub fn resolve_require_preset(scope: Scope) -> Result<Option<bool>> {
+    match scope {
+        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.require_preset)),
+        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.require_preset)),
+        Scope::Auto => {
+            if let Some(project_settings) = load_settings(Scope::Project)?
+                && let Some(require_preset) = project_settings.require_preset
+            {
+                return Ok(Some(require_preset));
+            }
+            Ok(load_settings(Scope::User)?.and_then(|s| s.require_preset))
+        }
+    }
+}
+
+/// Check if user presets should be ignored (only honored from project settings)
+///
+/// Returns true only if project settings exist and have `ignore_user_presets: true`
+pub fn should_ignore_user_presets() -> Result<bool> {
+    if let Some(project_settings) = load_settings(Scope::Project)? {
+        return Ok(project_settings.ignore_user_presets.unwrap_or(false));
+    }
+    Ok(false)
+}
+
 fn get_user_settings_path() -> Result<PathBuf> {
     let home = BaseDirs::new()
         .ok_or_else(|| anyhow::anyhow!("Failed to determine home directory"))?
