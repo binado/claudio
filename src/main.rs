@@ -4,26 +4,44 @@ use std::process::ExitCode;
 
 use claudio::cli::Cli;
 use claudio::cli::Commands;
+use claudio::color::{ColorConfig, HighlightColor};
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    match run(cli) {
+    // Initialize color config
+    let highlight_color = match HighlightColor::parse(&cli.color) {
+        Some(color) => color,
+        None => {
+            eprintln!(
+                "Warning: invalid color '{}'; falling back to Cyan.",
+                cli.color
+            );
+            HighlightColor::Cyan
+        }
+    };
+
+    let color_config = ColorConfig::new(highlight_color, !cli.no_color);
+
+    match run(cli, color_config.clone()) {
         Ok(code) => code,
         Err(e) => {
-            eprintln!("Error: {:#}", e);
+            let error_prefix = color_config.error("Error:");
+            eprintln!("{} {:#}", error_prefix, e);
             ExitCode::FAILURE
         }
     }
 }
 
-fn run(cli: Cli) -> Result<ExitCode> {
+fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
     let exit_code = match &cli.command {
         Commands::Run {
             preset,
             scope,
             claude_args,
-        } => claudio::commands::run::run(preset.as_deref(), scope.scope, claude_args)?,
+        } => {
+            claudio::commands::run::run(preset.as_deref(), scope.scope, claude_args, &color_config)?
+        }
         Commands::List {
             scope,
             name,
@@ -37,6 +55,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 *verbose,
                 fields.as_deref(),
                 *prompt_max_length,
+                &color_config,
             )?;
             ExitCode::SUCCESS
         }

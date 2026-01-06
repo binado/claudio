@@ -21,6 +21,14 @@ pub struct ScopeArgs {
 #[command(name = "claudio")]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
+    /// Highlight color (cyan, green, yellow, blue, magenta)
+    #[arg(long, global = true, default_value = "cyan")]
+    pub color: String,
+
+    /// Disable colored output
+    #[arg(long, global = true)]
+    pub no_color: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }

@@ -1,22 +1,31 @@
 use crate::cli::Scope;
+use crate::color::ColorConfig;
 use crate::preset::loader;
 use crate::preset::resolver;
 use anyhow::{Context, Result};
 use std::io::Write;
 use std::process::{Command, ExitCode};
 
-pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> Result<ExitCode> {
+pub fn run(
+    preset_name: Option<&str>,
+    scope: Scope,
+    claude_args: &[String],
+    color_config: &ColorConfig,
+) -> Result<ExitCode> {
     // Determine which preset to use
     let preset_to_use = match preset_name {
         Some(name) => {
-            eprintln!("using preset <{}>", name);
+            eprintln!(
+                "using preset {}",
+                color_config.highlight(&format!("<{}>", name))
+            );
             name
         }
         None => {
             // Try to find "default" preset
             match loader::find_preset_scoped("default", scope) {
                 Ok(_) => {
-                    eprintln!("using preset <default>");
+                    eprintln!("using preset {}", color_config.highlight("<default>"));
                     "default"
                 }
                 Err(_) => {
