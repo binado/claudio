@@ -2,7 +2,6 @@ use crate::cli::Scope;
 use crate::preset::types::Preset;
 use crate::util::get_claudio_home;
 use anyhow::{Context, Result};
-use directories::BaseDirs;
 use std::path::{Path, PathBuf};
 
 pub fn discover_presets() -> Result<Vec<PathBuf>> {
@@ -247,8 +246,8 @@ pub fn get_preset_dirs() -> Vec<PathBuf> {
         dirs.push(cwd.join(".claudio").join("presets"));
     }
 
-    if let Some(home) = BaseDirs::new() {
-        dirs.push(home.home_dir().join(".claudio").join("presets"));
+    if let Ok(user_dir) = get_user_preset_dir() {
+        dirs.push(user_dir);
     }
 
     dirs
