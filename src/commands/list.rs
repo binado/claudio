@@ -3,7 +3,7 @@ use crate::color::ColorConfig;
 use crate::preset::loader;
 use crate::preset::types::Preset;
 use anyhow::Result;
-use comfy_table::{Attribute, Cell, CellAlignment, Color, ContentArrangement, Table};
+use comfy_table::{Attribute, Cell, CellAlignment, ContentArrangement, Table};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
@@ -192,7 +192,8 @@ pub fn list(
             .map(|f| {
                 let cell = Cell::new(field_to_header(f)).set_alignment(CellAlignment::Left);
                 if color_config.enabled {
-                    cell.fg(color_config.highlight_color).add_attribute(Attribute::Bold)
+                    cell.fg(color_config.highlight_color.to_comfy_color())
+                        .add_attribute(Attribute::Bold)
                 } else {
                     cell
                 }

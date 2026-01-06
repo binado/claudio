@@ -22,6 +22,17 @@ impl HighlightColor {
         }
     }
 
+    /// Convert to comfy_table::Color for table styling
+    pub fn to_comfy_color(self) -> comfy_table::Color {
+        match self {
+            Self::Cyan => comfy_table::Color::Cyan,
+            Self::Green => comfy_table::Color::Green,
+            Self::Yellow => comfy_table::Color::Yellow,
+            Self::Blue => comfy_table::Color::Blue,
+            Self::Magenta => comfy_table::Color::Magenta,
+        }
+    }
+
     pub fn apply(&self, text: &str) -> ColoredString {
         match self {
             Self::Cyan => text.cyan(),

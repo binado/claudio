@@ -11,8 +11,8 @@ fn main() -> ExitCode {
 
     // Initialize color config
     let highlight_color = match HighlightColor::parse(&cli.color) {
-        Ok(color) => color,
-        Err(_) => {
+        Some(color) => color,
+        None => {
             eprintln!(
                 "Warning: invalid color '{}'; falling back to Cyan.",
                 cli.color
@@ -21,10 +21,7 @@ fn main() -> ExitCode {
         }
     };
 
-    let color_config = ColorConfig::new(
-        highlight_color,
-        !cli.no_color,
-    );
+    let color_config = ColorConfig::new(highlight_color, !cli.no_color);
 
     match run(cli, color_config.clone()) {
         Ok(code) => code,
