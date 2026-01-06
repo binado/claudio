@@ -78,7 +78,7 @@ pub fn load_inline_preset(
     scope: Scope,
 ) -> Result<Option<crate::preset::types::Preset>> {
     if let Some(settings) = load_settings(scope)?
-        && let Some(preset) = settings.presets.get(name)
+        && let Some(preset) = settings.presets.iter().find(|p| p.name == name)
     {
         return Ok(Some(preset.clone()));
     }

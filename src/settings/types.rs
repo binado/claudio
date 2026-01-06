@@ -3,7 +3,6 @@ use crate::preset::loader;
 use crate::preset::types::Preset;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
@@ -13,7 +12,7 @@ pub struct Settings {
 
     /// Inline preset definitions (can be used instead of separate files)
     #[serde(default)]
-    pub presets: HashMap<String, Preset>,
+    pub presets: Vec<Preset>,
 }
 
 impl Settings {
@@ -24,19 +23,20 @@ impl Settings {
     /// 2. All inline presets are valid
     pub fn validate(&self, scope: Scope) -> Result<()> {
         // Check for name collisions between inline presets and file presets
-        for preset_name in self.presets.keys() {
-            if let Ok(file_path) = loader::find_preset_scoped(preset_name, scope) {
+        for preset in &self.presets {
+            if let Ok(file_path) = loader::find_preset_scoped(&preset.name, scope) {
                 anyhow::bail!(
                     "Inline preset '{}' conflicts with a file-based preset.\n\n\
                      Choose a different name or remove the file preset at:\n  {}",
-                    preset_name,
+                    preset.name,
                     file_path.display()
                 );
             }
         }
 
         // Validate each inline preset
-        for (name, preset) in &self.presets {
+        for preset in &self.presets {
+            let name = &preset.name;
             let validation = preset.validate(None);
             if !validation.errors.is_empty() {
                 let message = if validation.errors.len() == 1 {
@@ -48,9 +48,7 @@ impl Settings {
                     format!(
                         "Inline preset '{}' has multiple validation errors:\n  - {}",
                         name,
-                        validation
-                            .errors
-                            .join("\n  - ")
+                        validation.errors.join("\n  - ")
                     )
                 };
                 anyhow::bail!(message);
