@@ -191,3 +191,284 @@ fn resolve_inheritance_recursive(
         source_path,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // resolve_variables tests
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    fn preset_with_env(env: HashMap<String, String>) -> Preset {
+        Preset {
+            name: "test".to_string(),
+            description: None,
+            extends: None,
+            prompt: None,
+            env: Some(env),
+            args: None,
+            settings: None,
+        }
+    }
+
+    #[test]
+    fn test_resolve_variables_no_env() {
+        let preset = Preset {
+            name: "test".to_string(),
+            description: None,
+            extends: None,
+            prompt: None,
+            env: None,
+            args: None,
+            settings: None,
+        };
+        let result = resolve_variables(&preset).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_resolve_variables_no_substitution() {
+        let mut env = HashMap::new();
+        env.insert("API_URL".to_string(), "https://api.example.com".to_string());
+        let preset = preset_with_env(env);
+
+        let result = resolve_variables(&preset).unwrap();
+        assert_eq!(result.get("API_URL").unwrap(), "https://api.example.com");
+    }
+
+    #[test]
+    fn test_resolve_variables_single_substitution() {
+        // Set up test environment variable
+        unsafe {
+            std::env::set_var("TEST_API_KEY", "secret123");
+        }
+
+        let mut env = HashMap::new();
+        env.insert("API_KEY".to_string(), "${TEST_API_KEY}".to_string());
+        let preset = preset_with_env(env);
+
+        let result = resolve_variables(&preset).unwrap();
+        assert_eq!(result.get("API_KEY").unwrap(), "secret123");
+
+        // Clean up
+        unsafe {
+            std::env::remove_var("TEST_API_KEY");
+        }
+    }
+
+    #[test]
+    fn test_resolve_variables_multiple_substitutions() {
+        unsafe {
+            std::env::set_var("TEST_HOST", "example.com");
+            std::env::set_var("TEST_PORT", "8080");
+        }
+
+        let mut env = HashMap::new();
+        env.insert(
+            "API_URL".to_string(),
+            "https://${TEST_HOST}:${TEST_PORT}/api".to_string(),
+        );
+        let preset = preset_with_env(env);
+
+        let result = resolve_variables(&preset).unwrap();
+        assert_eq!(
+            result.get("API_URL").unwrap(),
+            "https://example.com:8080/api"
+        );
+
+        unsafe {
+            std::env::remove_var("TEST_HOST");
+            std::env::remove_var("TEST_PORT");
+        }
+    }
+
+    #[test]
+    fn test_resolve_variables_missing_env_var() {
+        let mut env = HashMap::new();
+        env.insert(
+            "API_KEY".to_string(),
+            "${NONEXISTENT_VAR_12345}".to_string(),
+        );
+        let preset = preset_with_env(env);
+
+        let result = resolve_variables(&preset);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("NONEXISTENT_VAR_12345")
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // resolve_settings_value / resolve_settings_variables tests
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_resolve_settings_value_primitives() {
+        // Numbers, bools, and nulls should pass through unchanged
+        assert_eq!(resolve_settings_value(&json!(42)).unwrap(), json!(42));
+        assert_eq!(resolve_settings_value(&json!(3.14)).unwrap(), json!(3.14));
+        assert_eq!(resolve_settings_value(&json!(true)).unwrap(), json!(true));
+        assert_eq!(resolve_settings_value(&json!(null)).unwrap(), json!(null));
+    }
+
+    #[test]
+    fn test_resolve_settings_value_string_no_vars() {
+        let result = resolve_settings_value(&json!("plain string")).unwrap();
+        assert_eq!(result, json!("plain string"));
+    }
+
+    #[test]
+    fn test_resolve_settings_value_string_with_var() {
+        unsafe {
+            std::env::set_var("TEST_SETTING_VAR", "resolved_value");
+        }
+
+        let result = resolve_settings_value(&json!("prefix_${TEST_SETTING_VAR}_suffix")).unwrap();
+        assert_eq!(result, json!("prefix_resolved_value_suffix"));
+
+        unsafe {
+            std::env::remove_var("TEST_SETTING_VAR");
+        }
+    }
+
+    #[test]
+    fn test_resolve_settings_value_array() {
+        unsafe {
+            std::env::set_var("TEST_ARR_VAR", "item2");
+        }
+
+        let input = json!(["item1", "${TEST_ARR_VAR}", "item3"]);
+        let result = resolve_settings_value(&input).unwrap();
+        assert_eq!(result, json!(["item1", "item2", "item3"]));
+
+        unsafe {
+            std::env::remove_var("TEST_ARR_VAR");
+        }
+    }
+
+    #[test]
+    fn test_resolve_settings_value_nested_object() {
+        unsafe {
+            std::env::set_var("TEST_NESTED_VAR", "deep_value");
+        }
+
+        let input = json!({
+            "level1": {
+                "level2": "${TEST_NESTED_VAR}"
+            }
+        });
+        let result = resolve_settings_value(&input).unwrap();
+        assert_eq!(
+            result,
+            json!({
+                "level1": {
+                    "level2": "deep_value"
+                }
+            })
+        );
+
+        unsafe {
+            std::env::remove_var("TEST_NESTED_VAR");
+        }
+    }
+
+    #[test]
+    fn test_resolve_settings_value_missing_var() {
+        let input = json!("${MISSING_SETTINGS_VAR_99999}");
+        let result = resolve_settings_value(&input);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolve_settings_variables_object() {
+        unsafe {
+            std::env::set_var("TEST_OBJ_VAR", "obj_value");
+        }
+
+        let input = json!({
+            "key1": "static",
+            "key2": "${TEST_OBJ_VAR}"
+        });
+        let result = resolve_settings_variables(&input).unwrap();
+        assert_eq!(
+            result,
+            json!({
+                "key1": "static",
+                "key2": "obj_value"
+            })
+        );
+
+        unsafe {
+            std::env::remove_var("TEST_OBJ_VAR");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // merge_json_settings tests
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_merge_json_settings_both_none() {
+        let result = merge_json_settings(None, None);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_merge_json_settings_base_only() {
+        let base = json!({"key": "value"});
+        let result = merge_json_settings(Some(base.clone()), None);
+        assert_eq!(result, Some(base));
+    }
+
+    #[test]
+    fn test_merge_json_settings_derived_only() {
+        let derived = json!({"key": "value"});
+        let result = merge_json_settings(None, Some(derived.clone()));
+        assert_eq!(result, Some(derived));
+    }
+
+    #[test]
+    fn test_merge_json_settings_shallow_merge() {
+        let base = json!({"a": 1, "b": 2});
+        let derived = json!({"b": 3, "c": 4});
+        let result = merge_json_settings(Some(base), Some(derived)).unwrap();
+
+        assert_eq!(result["a"], json!(1));
+        assert_eq!(result["b"], json!(3)); // derived overrides
+        assert_eq!(result["c"], json!(4));
+    }
+
+    #[test]
+    fn test_merge_json_settings_deep_merge() {
+        let base = json!({
+            "nested": {
+                "a": 1,
+                "b": 2
+            }
+        });
+        let derived = json!({
+            "nested": {
+                "b": 3,
+                "c": 4
+            }
+        });
+        let result = merge_json_settings(Some(base), Some(derived)).unwrap();
+
+        assert_eq!(result["nested"]["a"], json!(1));
+        assert_eq!(result["nested"]["b"], json!(3)); // derived overrides
+        assert_eq!(result["nested"]["c"], json!(4));
+    }
+
+    #[test]
+    fn test_merge_json_settings_derived_non_object_overrides() {
+        let base = json!({"key": "value"});
+        let derived = json!("string value");
+        let result = merge_json_settings(Some(base), Some(derived));
+        assert_eq!(result, Some(json!("string value")));
+    }
+}
