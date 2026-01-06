@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, ValueEnum)]
 pub enum Scope {
     /// Use the default resolution behavior (project shadows user for reads).
     Auto,
@@ -42,6 +42,10 @@ pub enum Commands {
 
         #[command(flatten)]
         scope: ScopeArgs,
+
+        /// Require a preset (error if none available instead of running bare claude)
+        #[arg(long)]
+        require_preset: bool,
 
         /// Additional arguments to pass to claude
         #[arg(last = true, allow_hyphen_values = true)]

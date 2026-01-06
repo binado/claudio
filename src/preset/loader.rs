@@ -123,6 +123,22 @@ pub fn find_preset(name: &str) -> Result<PathBuf> {
     )
 }
 
+/// Try to find a preset - first checking inline presets in settings, then file-based presets
+pub fn find_preset_or_inline(name: &str, scope: Scope) -> Result<Option<Preset>> {
+    // First try inline preset from settings
+    if let Some(inline_preset) = crate::settings::loader::load_inline_preset(name, scope)? {
+        return Ok(Some(inline_preset));
+    }
+
+    // Then try file-based preset
+    if let Ok(path) = find_preset_scoped(name, scope) {
+        let preset = load_preset(&path)?;
+        return Ok(Some(preset));
+    }
+
+    Ok(None)
+}
+
 pub fn find_preset_scoped(name: &str, scope: Scope) -> Result<PathBuf> {
     let dirs = get_preset_dirs_scoped(scope)?;
     for dir in &dirs {
@@ -243,7 +259,18 @@ fn get_project_preset_dir() -> Option<PathBuf> {
     Some(root.join(".claudio").join("presets"))
 }
 
-fn find_project_root(start: &Path) -> Option<PathBuf> {
+/// Finds the project root by searching upward from a starting path.
+///
+/// This function walks up the directory tree starting from the `start` path until it locates
+/// a project root marker (either a `.claudio` or `.git` directory). It stops and returns `None`
+/// if it reaches the filesystem root without finding any markers.
+///
+/// # Arguments
+/// * `start` - The starting directory to search from.
+///
+/// # Returns
+/// * `Option<PathBuf>` - `Some(root)` when a project root is found, `None` otherwise.
+pub fn find_project_root(start: &Path) -> Option<PathBuf> {
     let mut dir = start;
 
     loop {

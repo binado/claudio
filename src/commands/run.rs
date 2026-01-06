@@ -2,6 +2,7 @@ use crate::cli::Scope;
 use crate::color::ColorConfig;
 use crate::preset::loader;
 use crate::preset::resolver;
+use crate::settings::loader as settings_loader;
 use anyhow::{Context, Result};
 use std::io::Write;
 use std::process::{Command, ExitCode};
@@ -9,9 +10,22 @@ use std::process::{Command, ExitCode};
 pub fn run(
     preset_name: Option<&str>,
     scope: Scope,
+    require_preset_cli: bool,
     claude_args: &[String],
     color_config: &ColorConfig,
 ) -> Result<ExitCode> {
+    // Determine effective require_preset: CLI flag overrides settings
+    let require_preset =
+        require_preset_cli || settings_loader::resolve_require_preset(scope)?.unwrap_or(false);
+
+    // Apply ignore_user_presets if set in project settings
+    let effective_scope = if scope == Scope::Auto && settings_loader::should_ignore_user_presets()?
+    {
+        Scope::Project
+    } else {
+        scope
+    };
+
     // Determine which preset to use
     let preset_to_use = match preset_name {
         Some(name) => {
@@ -19,29 +33,38 @@ pub fn run(
                 "using preset {}",
                 color_config.highlight(&format!("<{}>", name))
             );
-            name
+            name.to_string()
         }
         None => {
-            // Try to find "default" preset
-            match loader::find_preset_scoped("default", scope) {
-                Ok(_) => {
-                    eprintln!("using preset {}", color_config.highlight("<default>"));
-                    "default"
+            // Try to get default preset from settings
+            if let Some(default_name) = settings_loader::resolve_default_preset(effective_scope)? {
+                eprintln!(
+                    "using preset {} (from settings)",
+                    color_config.highlight(&format!("<{}>", default_name))
+                );
+                default_name
+            } else if loader::find_preset_scoped("default", effective_scope).is_ok() {
+                // Fall back to "default" preset file
+                eprintln!("using preset {}", color_config.highlight("<default>"));
+                "default".to_string()
+            } else {
+                // No default preset found
+                if require_preset {
+                    anyhow::bail!(
+                        "No preset available and 'require_preset' is enabled.\n\n\
+                         Specify a preset name, set 'default_preset' in settings, \
+                         or create a 'default' preset file."
+                    );
                 }
-                Err(_) => {
-                    // No default preset found - run claude directly
-                    eprintln!("no preset found, falling back to: claude");
-                    return run_claude_directly(claude_args);
-                }
+                eprintln!("no preset found, falling back to: claude");
+                return run_claude_directly(claude_args);
             }
         }
     };
 
-    let preset_path = loader::find_preset_scoped(preset_to_use, scope)
+    // Try to find the preset (inline or file-based)
+    let preset = loader::find_preset_or_inline(&preset_to_use, effective_scope)?
         .with_context(|| format!("Failed to find preset: {}", preset_to_use))?;
-
-    let preset = loader::load_preset(&preset_path)
-        .with_context(|| format!("Failed to load preset: {}", preset_to_use))?;
 
     let resolved = resolver::resolve_inheritance(&preset)
         .with_context(|| format!("Failed to resolve preset: {}", preset_to_use))?;
