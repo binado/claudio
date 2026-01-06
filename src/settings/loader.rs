@@ -17,10 +17,10 @@ pub fn get_settings_path(scope: Scope) -> Result<PathBuf> {
         Scope::User => Ok(get_user_settings_path()?),
         Scope::Auto => {
             // For Auto scope, we prefer project if it exists
-            if let Some(project_path) = get_project_settings_path() {
-                if project_path.exists() {
-                    return Ok(project_path);
-                }
+            if let Some(project_path) = get_project_settings_path()
+                && project_path.exists()
+            {
+                return Ok(project_path);
             }
             Ok(get_user_settings_path()?)
         }
@@ -58,10 +58,10 @@ pub fn resolve_default_preset(scope: Scope) -> Result<Option<String>> {
         Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.default_preset)),
         Scope::Auto => {
             // Check project first, then fall back to user
-            if let Some(project_settings) = load_settings(Scope::Project)? {
-                if let Some(default) = project_settings.default_preset {
-                    return Ok(Some(default));
-                }
+            if let Some(project_settings) = load_settings(Scope::Project)?
+                && let Some(default) = project_settings.default_preset
+            {
+                return Ok(Some(default));
             }
 
             // Project settings exists but default_preset is null, or no project settings
@@ -77,10 +77,10 @@ pub fn load_inline_preset(
     name: &str,
     scope: Scope,
 ) -> Result<Option<crate::preset::types::Preset>> {
-    if let Some(settings) = load_settings(scope)? {
-        if let Some(preset) = settings.presets.get(name) {
-            return Ok(Some(preset.clone()));
-        }
+    if let Some(settings) = load_settings(scope)?
+        && let Some(preset) = settings.presets.get(name)
+    {
+        return Ok(Some(preset.clone()));
     }
     Ok(None)
 }

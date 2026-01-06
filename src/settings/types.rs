@@ -39,10 +39,8 @@ impl Settings {
         // Validate each inline preset
         for (name, preset) in &self.presets {
             let validation = preset.validate(None);
-            if !validation.is_valid() {
-                for error in validation.errors {
-                    anyhow::bail!("Inline preset '{}' has validation error: {}", name, error);
-                }
+            if let Some(error) = validation.errors.into_iter().next() {
+                anyhow::bail!("Inline preset '{}' has validation error: {}", name, error);
             }
         }
 
