@@ -66,7 +66,7 @@ pub fn default_preset(name: &str) -> Preset {
         prompt: Some(String::new()),
         env: Some(std::collections::HashMap::new()),
         args: Some(Vec::new()),
-        settings: None,
+        settings: Some(serde_json::json!({})),
     }
 }
 
