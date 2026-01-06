@@ -2,6 +2,7 @@ use crate::cli::Scope;
 use crate::preset::loader;
 use crate::preset::resolver;
 use anyhow::{Context, Result};
+use std::io::Write;
 use std::process::{Command, ExitCode};
 
 pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> Result<ExitCode> {
@@ -46,6 +47,29 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
         cmd.arg(arg);
     }
 
+    // Add settings via temporary file if present (more secure than command-line args)
+    let _temp_settings_file = if let Some(settings) = &resolved.settings {
+        let settings_json = serde_json::to_string_pretty(settings)
+            .context("Failed to serialize settings to JSON")?;
+
+        // Create a temporary file in the system temp directory
+        let mut temp_file =
+            tempfile::NamedTempFile::new().context("Failed to create temporary settings file")?;
+
+        // Write settings directly through the file handle (avoids race condition)
+        temp_file
+            .write_all(settings_json.as_bytes())
+            .context("Failed to write settings to temporary file")?;
+
+        let temp_path = temp_file.path().to_path_buf();
+        cmd.arg("--settings");
+        cmd.arg(&temp_path);
+
+        Some(temp_file)
+    } else {
+        None
+    };
+
     for arg in claude_args {
         cmd.arg(arg);
     }
@@ -56,6 +80,9 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
 
     let status = cmd.status()?;
     let code = status.code().unwrap_or(1);
+
+    // temp_settings_file is dropped here, cleaning up the temporary file
+
     Ok(ExitCode::from(code.clamp(0, 255) as u8))
 }
 

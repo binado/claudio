@@ -28,6 +28,14 @@ pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) ->
             println!("  {}={}", key, value);
         }
 
+        if let Some(settings) = &resolved_preset.settings {
+            println!("\nResolved Settings:");
+            let settings_json = serde_json::to_string_pretty(settings)?;
+            for line in settings_json.lines() {
+                println!("  {}", line);
+            }
+        }
+
         if let Some(prompt) = &resolved_preset.prompt {
             println!("\nPrompt:");
             println!("  {}", prompt);
@@ -44,7 +52,11 @@ pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) ->
 
         println!("\nCommand that would be executed:");
         let args_str = resolved_preset.args.join(" ");
-        println!("  claude {}", args_str);
+        if resolved_preset.settings.is_some() {
+            println!("  claude {} --settings <temp-file>", args_str);
+        } else {
+            println!("  claude {}", args_str);
+        }
     } else {
         println!("Configuration: {}", preset_name);
         println!("Location: {}\n", preset_path.display());
