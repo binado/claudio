@@ -1007,6 +1007,53 @@ Note: The `allowed-tools` from the derived preset completely overrides the base 
 
 If a preset exists in both locations, the project-local version takes precedence.
 
+### Environment Variable: CLAUDIO_HOME_DIR
+
+The `CLAUDIO_HOME_DIR` environment variable allows you to customize where claudio looks for the user-level home directory. This is particularly useful for testing and isolated environments.
+
+**Behavior:**
+- When `CLAUDIO_HOME_DIR` is set, claudio uses it as the home directory instead of the system home directory
+- When not set, claudio falls back to the standard system home directory (e.g., `~` on Unix systems)
+
+**Requirements:**
+- Must be an **absolute path** (relative paths are not allowed)
+- Must point to an **existing directory**
+- Must be a **directory** (not a file)
+- If any of these requirements are not met, claudio will error out with a clear message
+
+**Example usage:**
+
+```bash
+# Use a custom home directory for testing
+export CLAUDIO_HOME_DIR=/tmp/test-claudio-home
+mkdir -p /tmp/test-claudio-home/.claudio/presets
+claudio list
+
+# Run with a custom home directory (one-time)
+CLAUDIO_HOME_DIR=/tmp/test-claudio-home claudio run my-preset
+```
+
+**Use cases:**
+1. **Testing** - Isolate test runs in temporary directories without affecting user configuration
+2. **CI/CD** - Use custom directories in automated pipelines
+3. **Multiple configurations** - Switch between different claudio setups easily
+4. **Development** - Test changes without modifying your actual configuration
+
+**Directory resolution with CLAUDIO_HOME_DIR:**
+
+When `CLAUDIO_HOME_DIR` is set to `/tmp/test-home`:
+```
+/tmp/test-home/
+└── .claudio/
+    ├── presets/
+    │   └── my-preset.json
+    └── settings.json
+
+./.claudio/          # Project-local (still used, highest priority)
+└── presets/
+    └── project-preset.json
+```
+
 ---
 
 ## Implementation Plan

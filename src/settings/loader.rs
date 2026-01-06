@@ -1,8 +1,8 @@
 use crate::cli::Scope;
 use crate::preset;
 use crate::settings::types::Settings;
+use crate::util::get_claudio_home;
 use anyhow::{Context, Result};
-use directories::BaseDirs;
 use std::path::PathBuf;
 
 /// Get the path to the settings file for a given scope
@@ -150,11 +150,7 @@ pub fn should_ignore_user_presets() -> Result<bool> {
 }
 
 fn get_user_settings_path() -> Result<PathBuf> {
-    let home = BaseDirs::new()
-        .ok_or_else(|| anyhow::anyhow!("Failed to determine home directory"))?
-        .home_dir()
-        .to_owned();
-
+    let home = get_claudio_home()?;
     Ok(home.join(".claudio").join("settings.json"))
 }
 
