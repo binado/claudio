@@ -29,10 +29,7 @@ pub fn run(
     // Determine which preset to use
     let preset_to_use = match preset_name {
         Some(name) => {
-            eprintln!(
-                "using preset {}",
-                color_config.highlight(name)
-            );
+            eprintln!("using preset {}", color_config.highlight(name));
             name.to_string()
         }
         None => {
@@ -40,7 +37,7 @@ pub fn run(
             if let Some(default_name) = settings_loader::resolve_default_preset(effective_scope)? {
                 eprintln!(
                     "using preset {} (from settings)",
-                    color_config.highlight(default_name)
+                    color_config.highlight(&default_name)
                 );
                 default_name
             } else if loader::find_preset_scoped("default", effective_scope).is_ok() {
