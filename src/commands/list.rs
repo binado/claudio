@@ -3,7 +3,7 @@ use crate::color::ColorConfig;
 use crate::preset::loader;
 use crate::preset::types::Preset;
 use anyhow::Result;
-use comfy_table::Table;
+use comfy_table::{Attribute, Cell, CellAlignment, Color, ContentArrangement, Table};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
@@ -61,37 +61,40 @@ fn build_row(
     path: &Path,
     fields: &[String],
     prompt_max_length: usize,
-) -> Vec<String> {
+) -> Vec<Cell> {
     fields
         .iter()
-        .map(|field| match field.as_str() {
-            "name" => preset.name.clone(),
-            "description" => preset.description.as_deref().unwrap_or("").to_string(),
-            "filepath" => path.display().to_string(),
-            "env" => preset
-                .env
-                .as_ref()
-                .map(|e| e.keys().map(|k| k.as_str()).collect::<Vec<_>>().join(", "))
-                .unwrap_or_default(),
-            "args" => preset
-                .args
-                .as_ref()
-                .map(|a| a.join(", "))
-                .unwrap_or_default(),
-            "extends" => preset.extends.as_deref().unwrap_or("none").to_string(),
-            "prompt" => preset
-                .prompt
-                .as_deref()
-                .map(|p| {
-                    if prompt_max_length > 0 && p.chars().count() > prompt_max_length {
-                        let truncated: String = p.chars().take(prompt_max_length).collect();
-                        format!("{}...", truncated)
-                    } else {
-                        p.to_string()
-                    }
-                })
-                .unwrap_or_default(),
-            _ => String::new(),
+        .map(|field| {
+            let value = match field.as_str() {
+                "name" => preset.name.clone(),
+                "description" => preset.description.as_deref().unwrap_or("").to_string(),
+                "filepath" => path.display().to_string(),
+                "env" => preset
+                    .env
+                    .as_ref()
+                    .map(|e| e.keys().map(|k| k.as_str()).collect::<Vec<_>>().join(", "))
+                    .unwrap_or_default(),
+                "args" => preset
+                    .args
+                    .as_ref()
+                    .map(|a| a.join(", "))
+                    .unwrap_or_default(),
+                "extends" => preset.extends.as_deref().unwrap_or("none").to_string(),
+                "prompt" => preset
+                    .prompt
+                    .as_deref()
+                    .map(|p| {
+                        if prompt_max_length > 0 && p.chars().count() > prompt_max_length {
+                            let truncated: String = p.chars().take(prompt_max_length).collect();
+                            format!("{}...", truncated)
+                        } else {
+                            p.to_string()
+                        }
+                    })
+                    .unwrap_or_default(),
+                _ => String::new(),
+            };
+            Cell::new(value).set_alignment(CellAlignment::Left)
         })
         .collect()
 }
@@ -156,7 +159,9 @@ pub fn list(
         println!("{} ({}):", source, dir.display());
 
         let mut table = Table::new();
-        table.load_preset(comfy_table::presets::NOTHING);
+        table
+            .load_preset(comfy_table::presets::NOTHING)
+            .set_content_arrangement(ContentArrangement::Disabled);
 
         // Determine which fields to display
         let display_fields: Cow<[String]> = if let Some(ref validated) = validated_fields {
@@ -180,10 +185,18 @@ pub fn list(
             ])
         };
 
-        // Set headers based on display_fields
-        let headers: Vec<String> = display_fields
+        // Set headers based on display_fields with explicit left alignment
+        // Use comfy-table's native styling to ensure proper width calculation
+        let headers: Vec<Cell> = display_fields
             .iter()
-            .map(|f| color_config.highlight(field_to_header(f)))
+            .map(|f| {
+                let cell = Cell::new(field_to_header(f)).set_alignment(CellAlignment::Left);
+                if color_config.enabled {
+                    cell.fg(Color::Cyan).add_attribute(Attribute::Bold)
+                } else {
+                    cell
+                }
+            })
             .collect();
         table.set_header(headers);
 
@@ -193,7 +206,10 @@ pub fn list(
             table.add_row(row);
         }
 
-        println!("{}", table);
+        // Print table with trimmed lines (removes leading whitespace from NOTHING preset)
+        for line in table.lines() {
+            println!("{}", line.trim());
+        }
         println!();
     }
 
