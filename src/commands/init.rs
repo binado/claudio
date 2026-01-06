@@ -29,6 +29,13 @@ pub fn init(scope: Scope) -> Result<()> {
     // Create or update settings file
     let settings_path = settings_loader::get_settings_path(scope)?;
     if !settings_path.exists() {
+        // Ensure the parent directory exists before writing
+        if let Some(parent) = settings_path.parent() {
+            std::fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create settings directory: {}", parent.display())
+            })?;
+        }
+
         let default_settings = Settings::default();
         let json = serde_json::to_string_pretty(&default_settings)
             .context("Failed to serialize settings to JSON")?;
