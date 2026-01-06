@@ -74,93 +74,92 @@ mod tests {
     use super::*;
     use std::env;
 
+    /// Tests for `get_claudio_home` that modify `CLAUDIO_HOME_DIR`.
+    ///
+    /// These tests are combined into a single test function to prevent race conditions
+    /// when running tests in parallel, since they all modify the same environment variable.
     #[test]
-    fn test_get_claudio_home_with_valid_env_var() {
-        // Create a temporary directory
-        let temp_dir = tempfile::tempdir().unwrap();
-        let temp_path = temp_dir.path().to_owned();
+    fn test_get_claudio_home() {
+        // Test 1: Valid environment variable with existing directory
+        {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let temp_path = temp_dir.path().to_owned();
 
-        unsafe {
-            env::set_var("CLAUDIO_HOME_DIR", &temp_path);
+            unsafe {
+                env::set_var("CLAUDIO_HOME_DIR", &temp_path);
+            }
+
+            let result = get_claudio_home();
+            assert!(result.is_ok(), "should succeed with valid directory");
+            assert_eq!(result.unwrap(), temp_path);
         }
 
-        let result = get_claudio_home();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), temp_path);
+        // Test 2: Without environment variable (fallback to home directory)
+        {
+            unsafe {
+                env::remove_var("CLAUDIO_HOME_DIR");
+            }
 
-        unsafe {
-            env::remove_var("CLAUDIO_HOME_DIR");
-        }
-    }
+            let result = get_claudio_home();
+            assert!(result.is_ok(), "should succeed without env var");
 
-    #[test]
-    fn test_get_claudio_home_without_env_var() {
-        unsafe {
-            env::remove_var("CLAUDIO_HOME_DIR");
-        }
-
-        let result = get_claudio_home();
-        assert!(result.is_ok());
-
-        let home = result.unwrap();
-        assert!(home.exists());
-        assert!(home.is_absolute());
-    }
-
-    #[test]
-    fn test_get_claudio_home_with_nonexistent_path() {
-        unsafe {
-            env::set_var("CLAUDIO_HOME_DIR", "/nonexistent/path/to/directory");
+            let home = result.unwrap();
+            assert!(home.exists(), "home directory should exist");
+            assert!(home.is_absolute(), "home directory should be absolute");
         }
 
-        let result = get_claudio_home();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("does not exist"));
+        // Test 3: Nonexistent path
+        {
+            unsafe {
+                env::set_var("CLAUDIO_HOME_DIR", "/nonexistent/path/to/directory");
+            }
 
-        unsafe {
-            env::remove_var("CLAUDIO_HOME_DIR");
-        }
-    }
-
-    #[test]
-    fn test_get_claudio_home_with_relative_path() {
-        unsafe {
-            env::set_var("CLAUDIO_HOME_DIR", "./relative/path");
-        }
-
-        let result = get_claudio_home();
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("must be an absolute path")
-        );
-
-        unsafe {
-            env::remove_var("CLAUDIO_HOME_DIR");
-        }
-    }
-
-    #[test]
-    fn test_get_claudio_home_with_file_instead_of_directory() {
-        // Create a temporary file
-        let temp_file = tempfile::NamedTempFile::new().unwrap();
-        let file_path = temp_file.path().to_owned();
-
-        unsafe {
-            env::set_var("CLAUDIO_HOME_DIR", &file_path);
+            let result = get_claudio_home();
+            assert!(result.is_err(), "should fail with nonexistent path");
+            assert!(
+                result.unwrap_err().to_string().contains("does not exist"),
+                "error should mention path does not exist"
+            );
         }
 
-        let result = get_claudio_home();
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("must be a directory")
-        );
+        // Test 4: Relative path
+        {
+            unsafe {
+                env::set_var("CLAUDIO_HOME_DIR", "./relative/path");
+            }
 
+            let result = get_claudio_home();
+            assert!(result.is_err(), "should fail with relative path");
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("must be an absolute path"),
+                "error should mention absolute path requirement"
+            );
+        }
+
+        // Test 5: File instead of directory
+        {
+            let temp_file = tempfile::NamedTempFile::new().unwrap();
+            let file_path = temp_file.path().to_owned();
+
+            unsafe {
+                env::set_var("CLAUDIO_HOME_DIR", &file_path);
+            }
+
+            let result = get_claudio_home();
+            assert!(result.is_err(), "should fail when path is a file");
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("must be a directory"),
+                "error should mention directory requirement"
+            );
+        }
+
+        // Clean up
         unsafe {
             env::remove_var("CLAUDIO_HOME_DIR");
         }
