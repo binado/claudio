@@ -64,7 +64,7 @@ pub fn resolve_default_preset(scope: Scope) -> Result<Option<String>> {
                 return Ok(Some(default));
             }
 
-            // Project settings exists but default_preset is null, or no project settings
+            // No project settings file exists, or project settings has no default_preset
             Ok(load_settings(Scope::User)?.and_then(|s| s.default_preset))
         }
     }
