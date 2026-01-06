@@ -38,8 +38,22 @@ impl Settings {
         // Validate each inline preset
         for (name, preset) in &self.presets {
             let validation = preset.validate(None);
-            if let Some(error) = validation.errors.into_iter().next() {
-                anyhow::bail!("Inline preset '{}' has validation error: {}", name, error);
+            if !validation.errors.is_empty() {
+                let message = if validation.errors.len() == 1 {
+                    format!(
+                        "Inline preset '{}' has validation error: {}",
+                        name, validation.errors[0]
+                    )
+                } else {
+                    format!(
+                        "Inline preset '{}' has multiple validation errors:\n  - {}",
+                        name,
+                        validation
+                            .errors
+                            .join("\n  - ")
+                    )
+                };
+                anyhow::bail!(message);
             }
         }
 
