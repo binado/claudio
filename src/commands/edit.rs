@@ -43,7 +43,7 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
                     match scope {
                         Scope::Project => "project",
                         Scope::User => "user",
-                        Scope::Auto => "auto",
+                        _ => unreachable!("Scope::Auto handled in outer match"),
                     },
                     preset_name
                 ),
