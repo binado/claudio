@@ -11,7 +11,7 @@ fn main() -> ExitCode {
 
     // Initialize color config
     let color_config = ColorConfig::new(
-        HighlightColor::from_str(&cli.color).unwrap_or(HighlightColor::Cyan),
+        HighlightColor::parse(&cli.color).unwrap_or(HighlightColor::Cyan),
         !cli.no_color,
     );
 

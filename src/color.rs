@@ -11,7 +11,7 @@ pub enum HighlightColor {
 }
 
 impl HighlightColor {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "cyan" => Some(Self::Cyan),
             "green" => Some(Self::Green),
@@ -43,7 +43,7 @@ impl Default for ColorConfig {
     fn default() -> Self {
         Self {
             highlight_color: HighlightColor::Cyan,
-            enabled: !env::var("NO_COLOR").is_ok(),
+            enabled: env::var("NO_COLOR").is_err(),
         }
     }
 }
