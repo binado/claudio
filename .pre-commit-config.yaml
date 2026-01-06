@@ -17,4 +17,4 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
-        stages: [pre-push]
+        stages: [pre-commit]
