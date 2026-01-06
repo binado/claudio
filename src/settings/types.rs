@@ -25,8 +25,7 @@ impl Settings {
     pub fn validate(&self, scope: Scope) -> Result<()> {
         // Check for name collisions between inline presets and file presets
         for preset_name in self.presets.keys() {
-            if loader::find_preset_scoped(preset_name, scope).is_ok() {
-                let file_path = loader::find_preset_scoped(preset_name, scope)?;
+            if let Ok(file_path) = loader::find_preset_scoped(preset_name, scope) {
                 anyhow::bail!(
                     "Inline preset '{}' conflicts with a file-based preset.\n\n\
                      Choose a different name or remove the file preset at:\n  {}",
