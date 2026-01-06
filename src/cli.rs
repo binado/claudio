@@ -51,6 +51,20 @@ pub enum Commands {
         #[arg(last = true, allow_hyphen_values = true)]
         claude_args: Vec<String>,
     },
+    /// Initialize a project-local preset directory at `<project-root>/.claudio/presets`
+    Init {
+        #[command(flatten)]
+        scope: ScopeArgs,
+    },
+    /// Manage presets (list, show, edit, env)
+    Preset {
+        #[command(subcommand)]
+        command: PresetCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum PresetCommands {
     /// List all available presets (optionally filter by name)
     List {
         /// Optional preset name to filter by (prints matching preset file paths)
@@ -94,11 +108,6 @@ pub enum Commands {
         /// Preset name to edit
         preset: String,
 
-        #[command(flatten)]
-        scope: ScopeArgs,
-    },
-    /// Initialize a project-local preset directory at `<project-root>/.claudio/presets`
-    Init {
         #[command(flatten)]
         scope: ScopeArgs,
     },

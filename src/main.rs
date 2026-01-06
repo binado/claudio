@@ -2,8 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::process::ExitCode;
 
-use claudio::cli::Commands;
-use claudio::cli::{Cli, Scope};
+use claudio::cli::{Cli, Commands, PresetCommands, Scope};
 use claudio::color::{ColorConfig, HighlightColor};
 use claudio::settings::loader as settings_loader;
 
@@ -12,12 +11,13 @@ fn main() -> ExitCode {
 
     // Determine the scope for settings lookup (default to Auto for global settings)
     let settings_scope = match &cli.command {
-        Commands::Run { scope, .. }
-        | Commands::List { scope, .. }
-        | Commands::Show { scope, .. }
-        | Commands::Edit { scope, .. }
-        | Commands::Init { scope }
-        | Commands::Env { scope, .. } => scope.scope,
+        Commands::Run { scope, .. } | Commands::Init { scope } => scope.scope,
+        Commands::Preset { command } => match command {
+            PresetCommands::List { scope, .. }
+            | PresetCommands::Show { scope, .. }
+            | PresetCommands::Edit { scope, .. }
+            | PresetCommands::Env { scope, .. } => scope.scope,
+        },
     };
 
     // Initialize color config with settings as defaults, CLI flags override
@@ -92,49 +92,51 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 &color_config,
             )?
         }
-        Commands::List {
-            scope,
-            name,
-            verbose,
-            fields,
-            prompt_max_length,
-        } => {
-            claudio::commands::list::list(
-                scope.scope,
-                name.as_deref(),
-                *verbose,
-                fields.as_deref(),
-                *prompt_max_length,
-                &color_config,
-            )?;
-            ExitCode::SUCCESS
-        }
-        Commands::Show {
-            preset,
-            scope,
-            resolved,
-            json,
-        } => {
-            claudio::commands::show::show(preset, scope.scope, *resolved, *json)?;
-            ExitCode::SUCCESS
-        }
-        Commands::Edit { preset, scope } => {
-            claudio::commands::edit::edit(preset, scope.scope)?;
-            ExitCode::SUCCESS
-        }
         Commands::Init { scope } => {
             claudio::commands::init::init(scope.scope)?;
             ExitCode::SUCCESS
         }
-        Commands::Env {
-            preset,
-            scope,
-            export,
-            resolved,
-        } => {
-            claudio::commands::env::env(preset, scope.scope, *export, *resolved)?;
-            ExitCode::SUCCESS
-        }
+        Commands::Preset { command } => match command {
+            PresetCommands::List {
+                scope,
+                name,
+                verbose,
+                fields,
+                prompt_max_length,
+            } => {
+                claudio::commands::list::list(
+                    scope.scope,
+                    name.as_deref(),
+                    *verbose,
+                    fields.as_deref(),
+                    *prompt_max_length,
+                    &color_config,
+                )?;
+                ExitCode::SUCCESS
+            }
+            PresetCommands::Show {
+                preset,
+                scope,
+                resolved,
+                json,
+            } => {
+                claudio::commands::show::show(preset, scope.scope, *resolved, *json)?;
+                ExitCode::SUCCESS
+            }
+            PresetCommands::Edit { preset, scope } => {
+                claudio::commands::edit::edit(preset, scope.scope)?;
+                ExitCode::SUCCESS
+            }
+            PresetCommands::Env {
+                preset,
+                scope,
+                export,
+                resolved,
+            } => {
+                claudio::commands::env::env(preset, scope.scope, *export, *resolved)?;
+                ExitCode::SUCCESS
+            }
+        },
     };
 
     Ok(exit_code)
