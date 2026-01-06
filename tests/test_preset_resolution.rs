@@ -9,10 +9,8 @@ mod common;
 
 use claudio::preset::loader;
 use claudio::preset::resolver;
-use claudio::preset::types::Preset;
 use common::TestEnvironment;
 use serial_test::serial;
-use std::collections::HashMap;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Variable Resolution Tests

@@ -314,7 +314,7 @@ mod tests {
     fn test_resolve_settings_value_primitives() {
         // Numbers, bools, and nulls should pass through unchanged
         assert_eq!(resolve_settings_value(&json!(42)).unwrap(), json!(42));
-        assert_eq!(resolve_settings_value(&json!(3.14)).unwrap(), json!(3.14));
+        assert_eq!(resolve_settings_value(&json!(3.15)).unwrap(), json!(3.15));
         assert_eq!(resolve_settings_value(&json!(true)).unwrap(), json!(true));
         assert_eq!(resolve_settings_value(&json!(null)).unwrap(), json!(null));
     }

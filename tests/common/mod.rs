@@ -1,5 +1,7 @@
 //! Common test utilities for integration tests.
 
+#![allow(dead_code)]
+
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;

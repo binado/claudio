@@ -3,7 +3,6 @@
 mod common;
 
 use claudio::preset::loader;
-use claudio::preset::types::Preset;
 use common::TestEnvironment;
 use std::fs;
 
