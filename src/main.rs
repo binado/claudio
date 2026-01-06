@@ -21,13 +21,20 @@ fn main() -> ExitCode {
     };
 
     // Initialize color config with settings as defaults, CLI flags override
-    let settings_color = settings_loader::resolve_color(settings_scope)
-        .ok()
-        .flatten();
-    let settings_no_color = settings_loader::resolve_no_color(settings_scope)
-        .ok()
-        .flatten()
-        .unwrap_or(false);
+    let settings_color = match settings_loader::resolve_color(settings_scope) {
+        Ok(color) => color,
+        Err(e) => {
+            eprintln!("Warning: failed to load color setting: {:#}", e);
+            None
+        }
+    };
+    let settings_no_color = match settings_loader::resolve_no_color(settings_scope) {
+        Ok(no_color) => no_color.unwrap_or(false),
+        Err(e) => {
+            eprintln!("Warning: failed to load no_color setting: {:#}", e);
+            false
+        }
+    };
 
     // CLI --color flag uses "cyan" as default, so we only use settings if CLI is at default
     let effective_color = if cli.color == "cyan" {
