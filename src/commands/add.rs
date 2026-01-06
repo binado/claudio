@@ -11,15 +11,27 @@ pub fn add(preset_name: &str, scope: Scope) -> Result<()> {
     // 1. Check if preset already exists
     let existing = loader::find_all_presets_scoped(preset_name, scope)?;
     if !existing.is_empty() {
-        anyhow::bail!(
-            "Preset '{}' already exists at:\n{}",
-            preset_name,
-            existing
-                .iter()
-                .map(|p| format!("  - {}", p.display()))
-                .collect::<Vec<_>>()
-                .join("\n")
-        );
+        let existing_paths = existing
+            .iter()
+            .map(|p| format!("  - {}", p.display()))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        if matches!(scope, Scope::Auto) {
+            anyhow::bail!(
+                "Preset '{}' already exists (in user and/or project scope) at:\n{}\n\n\
+                 If you want to create a preset with this name in a specific scope, \
+                 rerun this command with the '--scope' flag (for example, '--scope user' or '--scope project').",
+                preset_name,
+                existing_paths
+            );
+        } else {
+            anyhow::bail!(
+                "Preset '{}' already exists at:\n{}",
+                preset_name,
+                existing_paths
+            );
+        }
     }
 
     // 2. Create the new preset file
