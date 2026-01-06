@@ -1,7 +1,7 @@
 use crate::cli::Scope;
 use crate::preset::types::Preset;
+use crate::util::get_claudio_home;
 use anyhow::{Context, Result};
-use directories::BaseDirs;
 use std::path::{Path, PathBuf};
 
 pub fn discover_presets() -> Result<Vec<PathBuf>> {
@@ -246,8 +246,8 @@ pub fn get_preset_dirs() -> Vec<PathBuf> {
         dirs.push(cwd.join(".claudio").join("presets"));
     }
 
-    if let Some(home) = BaseDirs::new() {
-        dirs.push(home.home_dir().join(".claudio").join("presets"));
+    if let Ok(user_dir) = get_user_preset_dir() {
+        dirs.push(user_dir);
     }
 
     dirs
@@ -287,10 +287,6 @@ pub fn find_project_root(start: &Path) -> Option<PathBuf> {
 }
 
 fn get_user_preset_dir() -> Result<PathBuf> {
-    let home = BaseDirs::new()
-        .ok_or_else(|| anyhow::anyhow!("Failed to determine home directory"))?
-        .home_dir()
-        .to_owned();
-
+    let home = get_claudio_home()?;
     Ok(home.join(".claudio").join("presets"))
 }
