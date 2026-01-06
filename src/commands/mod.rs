@@ -1,3 +1,4 @@
+pub mod add;
 pub mod edit;
 pub mod env;
 pub mod init;

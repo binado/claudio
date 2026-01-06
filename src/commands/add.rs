@@ -7,53 +7,41 @@ use std::process::Command;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 
-pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
-    // 1. Find the preset (error if not found)
-    let preset_path = match scope {
-        Scope::Auto => {
-            let matches = loader::find_all_presets_scoped(preset_name, Scope::Auto)?;
-            match matches.len() {
-                0 => anyhow::bail!(
-                    "Preset '{}' not found. Use 'claudio preset add {}' to create it.",
-                    preset_name,
-                    preset_name
-                ),
-                1 => matches
-                    .into_iter()
-                    .next()
-                    .expect("matches.len() == 1 implies one element"),
-                _ => {
-                    let locations: Vec<_> = matches
-                        .iter()
-                        .map(|p| format!("  - {}", p.display()))
-                        .collect();
-                    anyhow::bail!(
-                        "Preset '{}' exists in multiple locations:\n{}\n\nRe-run with --scope project or --scope user to choose which one to edit.",
-                        preset_name,
-                        locations.join("\n")
-                    );
-                }
-            }
-        }
-        Scope::Project | Scope::User => {
-            match loader::find_all_presets_scoped(preset_name, scope)?.len() {
-                0 => anyhow::bail!(
-                    "Preset '{}' not found in {} scope. Use 'claudio preset add {}' to create it.",
-                    preset_name,
-                    match scope {
-                        Scope::Project => "project",
-                        Scope::User => "user",
-                        Scope::Auto => "auto",
-                    },
-                    preset_name
-                ),
-                _ => loader::find_preset_scoped(preset_name, scope)?,
-            }
-        }
-    };
+pub fn add(preset_name: &str, scope: Scope) -> Result<()> {
+    // 1. Check if preset already exists
+    let existing = loader::find_all_presets_scoped(preset_name, scope)?;
+    if !existing.is_empty() {
+        anyhow::bail!(
+            "Preset '{}' already exists at:\n{}",
+            preset_name,
+            existing
+                .iter()
+                .map(|p| format!("  - {}", p.display()))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
 
-    // 2. Open editor
-    open_in_editor(&preset_path)
+    // 2. Create the new preset file
+    let new_preset = loader::default_preset(preset_name);
+    let target_dir = loader::get_preset_write_dir_scoped(scope)?;
+
+    // Ensure directory exists before writing.
+    std::fs::create_dir_all(&target_dir).with_context(|| {
+        format!(
+            "Failed to create preset directory: {}",
+            target_dir.display()
+        )
+    })?;
+
+    let new_path = loader::preset_path_for_name(&target_dir, preset_name);
+
+    // Atomic write to avoid partial files on interruption.
+    loader::write_preset_atomic(&new_path, &new_preset)
+        .with_context(|| format!("Failed to write preset file: {}", new_path.display()))?;
+
+    // 3. Open in editor
+    open_in_editor(&new_path)
 }
 
 fn open_in_editor(preset_path: &std::path::Path) -> Result<()> {

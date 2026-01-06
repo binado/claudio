@@ -16,6 +16,7 @@ fn main() -> ExitCode {
             PresetCommands::List { scope, .. }
             | PresetCommands::Show { scope, .. }
             | PresetCommands::Edit { scope, .. }
+            | PresetCommands::Add { scope, .. }
             | PresetCommands::Env { scope, .. } => scope.scope,
         },
     };
@@ -125,6 +126,10 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
             }
             PresetCommands::Edit { preset, scope } => {
                 claudio::commands::edit::edit(preset, scope.scope)?;
+                ExitCode::SUCCESS
+            }
+            PresetCommands::Add { preset, scope } => {
+                claudio::commands::add::add(preset, scope.scope)?;
                 ExitCode::SUCCESS
             }
             PresetCommands::Env {

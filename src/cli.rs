@@ -56,7 +56,7 @@ pub enum Commands {
         #[command(flatten)]
         scope: ScopeArgs,
     },
-    /// Manage presets (list, show, edit, env)
+    /// Manage presets (list, show, edit, add, env)
     Preset {
         #[command(subcommand)]
         command: PresetCommands,
@@ -106,6 +106,14 @@ pub enum PresetCommands {
     /// Edit a preset in your default editor
     Edit {
         /// Preset name to edit
+        preset: String,
+
+        #[command(flatten)]
+        scope: ScopeArgs,
+    },
+    /// Create a new preset
+    Add {
+        /// Name for the new preset
         preset: String,
 
         #[command(flatten)]
