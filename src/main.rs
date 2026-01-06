@@ -10,8 +10,19 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
 
     // Initialize color config
+    let highlight_color = match HighlightColor::parse(&cli.color) {
+        Ok(color) => color,
+        Err(_) => {
+            eprintln!(
+                "Warning: invalid color '{}'; falling back to Cyan.",
+                cli.color
+            );
+            HighlightColor::Cyan
+        }
+    };
+
     let color_config = ColorConfig::new(
-        HighlightColor::parse(&cli.color).unwrap_or(HighlightColor::Cyan),
+        highlight_color,
         !cli.no_color,
     );
 

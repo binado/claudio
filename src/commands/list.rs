@@ -192,7 +192,7 @@ pub fn list(
             .map(|f| {
                 let cell = Cell::new(field_to_header(f)).set_alignment(CellAlignment::Left);
                 if color_config.enabled {
-                    cell.fg(Color::Cyan).add_attribute(Attribute::Bold)
+                    cell.fg(color_config.highlight_color).add_attribute(Attribute::Bold)
                 } else {
                     cell
                 }

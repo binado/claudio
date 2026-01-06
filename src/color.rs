@@ -51,10 +51,10 @@ impl Default for ColorConfig {
 impl ColorConfig {
     pub fn new(highlight_color: HighlightColor, enabled: bool) -> Self {
         // Respect NO_COLOR env var: if it's set, disable colors regardless of the enabled flag
-        let respects_no_color = env::var("NO_COLOR").is_ok();
+        let no_color_set = env::var("NO_COLOR").is_ok();
         Self {
             highlight_color,
-            enabled: enabled && !respects_no_color,
+            enabled: enabled && !no_color_set,
         }
     }
 
