@@ -18,9 +18,14 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
                     .next()
                     .expect("matches.len() == 1 implies one element"),
                 _ => {
+                    let locations: Vec<_> = matches
+                        .iter()
+                        .map(|p| format!("  - {}", p.display()))
+                        .collect();
                     anyhow::bail!(
-                        "Preset '{}' exists in multiple scopes. Re-run with --scope project or --scope user to choose which one to edit.",
-                        preset_name
+                        "Preset '{}' exists in multiple locations:\n{}\n\nRe-run with --scope project or --scope user to choose which one to edit.",
+                        preset_name,
+                        locations.join("\n")
                     );
                 }
             }
@@ -47,7 +52,7 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
     let status = Command::new(&editor)
         .arg(&preset_path)
         .status()
-        .with_context(|| format!("Could not open editor '{}'", editor))?;
+        .with_context(|| format!("Failed to open editor '{}'", editor))?;
 
     if status.success() {
         let preset = loader::load_preset(&preset_path)
@@ -81,7 +86,11 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
             }
         };
 
-        anyhow::bail!("Editor '{}' failed ({})", editor, detail);
+        anyhow::bail!(
+            "Editor '{}' failed ({})\n\nYou can change the editor by setting the VISUAL or EDITOR environment variable.",
+            editor,
+            detail
+        );
     }
 
     Ok(())
@@ -95,7 +104,7 @@ fn create_preset_scoped(preset_name: &str, scope: Scope) -> Result<std::path::Pa
     // Ensure directory exists before writing.
     std::fs::create_dir_all(&target_dir).with_context(|| {
         format!(
-            "Could not create preset directory: {}",
+            "Failed to create preset directory: {}",
             target_dir.display()
         )
     })?;
@@ -104,7 +113,7 @@ fn create_preset_scoped(preset_name: &str, scope: Scope) -> Result<std::path::Pa
 
     // Atomic write to avoid partial files on interruption.
     loader::write_preset_atomic(&new_path, &new_preset)
-        .with_context(|| format!("Could not write preset file: {}", new_path.display()))?;
+        .with_context(|| format!("Failed to write preset file: {}", new_path.display()))?;
 
     Ok(new_path)
 }

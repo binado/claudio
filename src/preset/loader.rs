@@ -49,8 +49,13 @@ pub fn discover_presets_scoped(scope: Scope) -> Result<Vec<PathBuf>> {
 pub fn load_preset(path: &Path) -> Result<Preset> {
     let content = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read preset file: {}", path.display()))?;
-    serde_json::from_str(&content)
-        .with_context(|| format!("Failed to parse preset file: {}", path.display()))
+    serde_json::from_str(&content).map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to parse preset file: {}\n\nParse error: {}",
+            path.display(),
+            e
+        )
+    })
 }
 
 pub fn default_preset(name: &str) -> Preset {
@@ -72,12 +77,12 @@ pub fn preset_path_for_name(dir: &Path, name: &str) -> PathBuf {
 pub fn write_preset_atomic(path: &Path, preset: &Preset) -> Result<()> {
     let parent = path.parent().ok_or_else(|| {
         anyhow::anyhow!(
-            "Could not determine parent directory for preset file: {}",
+            "Failed to determine parent directory for preset file: {}",
             path.display()
         )
     })?;
     std::fs::create_dir_all(parent)
-        .with_context(|| format!("Could not create preset directory: {}", parent.display()))?;
+        .with_context(|| format!("Failed to create preset directory: {}", parent.display()))?;
 
     let json = serde_json::to_string_pretty(preset)?;
 
@@ -88,32 +93,49 @@ pub fn write_preset_atomic(path: &Path, preset: &Preset) -> Result<()> {
 
     let tmp_path = parent.join(format!(".{}.tmp", file_name));
     std::fs::write(&tmp_path, json)
-        .with_context(|| format!("Could not write preset file: {}", tmp_path.display()))?;
+        .with_context(|| format!("Failed to write preset file: {}", tmp_path.display()))?;
 
     std::fs::rename(&tmp_path, path)
-        .with_context(|| format!("Could not replace preset file: {}", path.display()))?;
+        .with_context(|| format!("Failed to replace preset file: {}", path.display()))?;
 
     Ok(())
 }
 
+fn format_search_locations(dirs: &[PathBuf]) -> String {
+    dirs.iter()
+        .map(|p| format!("  - {}", p.display()))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 pub fn find_preset(name: &str) -> Result<PathBuf> {
-    for dir in get_preset_dirs() {
-        let path = preset_path_for_name(&dir, name);
+    let dirs = get_preset_dirs();
+    for dir in &dirs {
+        let path = preset_path_for_name(dir, name);
         if path.exists() {
             return Ok(path);
         }
     }
-    anyhow::bail!("Preset '{}' not found", name)
+    anyhow::bail!(
+        "Preset '{}' not found.\n\nSearched in:\n{}\n\nRun `claudio init` to create a presets directory.",
+        name,
+        format_search_locations(&dirs)
+    )
 }
 
 pub fn find_preset_scoped(name: &str, scope: Scope) -> Result<PathBuf> {
-    for dir in get_preset_dirs_scoped(scope)? {
-        let path = preset_path_for_name(&dir, name);
+    let dirs = get_preset_dirs_scoped(scope)?;
+    for dir in &dirs {
+        let path = preset_path_for_name(dir, name);
         if path.exists() {
             return Ok(path);
         }
     }
-    anyhow::bail!("Preset '{}' not found in scope {:?}", name, scope)
+    anyhow::bail!(
+        "Preset '{}' not found.\n\nSearched in:\n{}\n\nRun `claudio init` to create a presets directory.",
+        name,
+        format_search_locations(&dirs)
+    )
 }
 
 pub fn find_all_presets(name: &str) -> Vec<PathBuf> {
@@ -146,7 +168,7 @@ pub fn find_all_presets_scoped(name: &str, scope: Scope) -> Result<Vec<PathBuf>>
 pub fn get_preset_write_dir_scoped(scope: Scope) -> Result<PathBuf> {
     match scope {
         Scope::Project => get_project_preset_dir()
-            .ok_or_else(|| anyhow::anyhow!("Could not determine project root")),
+            .ok_or_else(|| anyhow::anyhow!("Failed to determine project root")),
 
         Scope::User => Ok(get_user_preset_dir()?),
 
@@ -187,7 +209,7 @@ pub fn get_preset_dirs_scoped(scope: Scope) -> Result<Vec<PathBuf>> {
         Scope::Project => {
             dirs.push(
                 get_project_preset_dir()
-                    .ok_or_else(|| anyhow::anyhow!("Could not determine project root"))?,
+                    .ok_or_else(|| anyhow::anyhow!("Failed to determine project root"))?,
             );
         }
         Scope::User => {
@@ -239,7 +261,7 @@ fn find_project_root(start: &Path) -> Option<PathBuf> {
 
 fn get_user_preset_dir() -> Result<PathBuf> {
     let home = BaseDirs::new()
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
+        .ok_or_else(|| anyhow::anyhow!("Failed to determine home directory"))?
         .home_dir()
         .to_owned();
 

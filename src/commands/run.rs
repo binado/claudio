@@ -29,13 +29,13 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
     };
 
     let preset_path = loader::find_preset_scoped(preset_to_use, scope)
-        .with_context(|| format!("Could not find preset: {}", preset_to_use))?;
+        .with_context(|| format!("Failed to find preset: {}", preset_to_use))?;
 
     let preset = loader::load_preset(&preset_path)
-        .with_context(|| format!("Could not load preset: {}", preset_to_use))?;
+        .with_context(|| format!("Failed to load preset: {}", preset_to_use))?;
 
     let resolved = resolver::resolve_inheritance(&preset)
-        .with_context(|| format!("Could not resolve preset: {}", preset_to_use))?;
+        .with_context(|| format!("Failed to resolve preset: {}", preset_to_use))?;
 
     let mut cmd = Command::new("claude");
 
@@ -78,22 +78,24 @@ pub fn run(preset_name: Option<&str>, scope: Scope, claude_args: &[String]) -> R
         cmd.arg(prompt);
     }
 
-    let status = cmd.status()?;
-    let code = status.code().unwrap_or(1);
-
-    // temp_settings_file is dropped here, cleaning up the temporary file
-
-    Ok(ExitCode::from(code.clamp(0, 255) as u8))
+    execute_claude_command(cmd)
 }
 
 fn run_claude_directly(claude_args: &[String]) -> Result<ExitCode> {
     let mut cmd = Command::new("claude");
     cmd.args(claude_args);
+    execute_claude_command(cmd)
+}
 
-    let status = cmd
-        .status()
-        .with_context(|| "Failed to execute claude command")?;
-
+fn execute_claude_command(mut cmd: Command) -> Result<ExitCode> {
+    let status = cmd.status().with_context(|| {
+        "Failed to execute 'claude' command.\n\n\
+         Make sure Claude Code is installed and available in your PATH.\n\
+         See: https://github.com/anthropics/claude-code"
+    })?;
     let code = status.code().unwrap_or(1);
+
+    // temp_settings_file is dropped here, cleaning up the temporary file
+
     Ok(ExitCode::from(code.clamp(0, 255) as u8))
 }

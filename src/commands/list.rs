@@ -111,6 +111,8 @@ pub fn list(
         None
     };
 
+    let mut skipped_count = 0;
+
     for dir in &preset_dirs {
         let mut dir_presets = Vec::<(PathBuf, Preset)>::new();
 
@@ -129,6 +131,7 @@ pub fn list(
                         }
                     }
                     Err(err) => {
+                        skipped_count += 1;
                         if verbose {
                             eprintln!("Warning: invalid preset file: {} ({})", path.display(), err);
                         }
@@ -187,6 +190,15 @@ pub fn list(
 
         println!("{}", table);
         println!();
+    }
+
+    if skipped_count > 0 && !verbose {
+        let msg = if skipped_count == 1 {
+            "1 invalid preset file skipped".to_string()
+        } else {
+            format!("{} invalid preset files skipped", skipped_count)
+        };
+        eprintln!("({}, use --verbose to see details)", msg);
     }
 
     Ok(())
