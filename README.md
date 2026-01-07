@@ -217,7 +217,7 @@ prek install
 
 This will set up git hooks that automatically run:
 - `cargo fmt` - Code formatting check (pre-commit)
-- `cargo clippy` - Linting (pre-push)
+- `cargo clippy` - Linting (pre-commit)
 
 ### Building and Testing
 
