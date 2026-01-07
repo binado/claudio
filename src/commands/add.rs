@@ -1,22 +1,11 @@
 use crate::cli::Scope;
 use crate::preset::loader;
 use crate::preset::store::PresetStore;
-use crate::preset::types::validate_preset_name;
 use anyhow::{Context, Result};
 
 use super::editor::open_in_editor;
 
 pub fn add(preset_name: &str, scope: Scope) -> Result<()> {
-    // Validate preset name before any file operations
-    let validation = validate_preset_name(preset_name);
-    if !validation.is_safe {
-        anyhow::bail!(
-            "Invalid preset name '{}': contains path separators or traversal patterns.\n\n\
-             Preset names must not contain: /, \\, .., or NUL characters.",
-            preset_name
-        );
-    }
-
     // Create a PresetStore for scope-aware lookups
     let store = PresetStore::new(scope)?;
 

@@ -1,21 +1,12 @@
 use crate::cli::Scope;
+use crate::preset::loader;
 use crate::preset::store::PresetStore;
-use crate::preset::types::{PresetSource, validate_preset_name};
+use crate::preset::types::PresetSource;
 use anyhow::Result;
 
 use super::editor::open_in_editor;
 
 pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
-    // Validate preset name before any file operations
-    let validation = validate_preset_name(preset_name);
-    if !validation.is_safe {
-        anyhow::bail!(
-            "Invalid preset name '{}': contains path separators or traversal patterns.\n\n\
-             Preset names must not contain: /, \\, .., or NUL characters.",
-            preset_name
-        );
-    }
-
     // Create a PresetStore for scope-aware lookups
     let store = PresetStore::new(scope)?;
 
@@ -24,11 +15,16 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
     if store.scope() == Scope::Auto {
         let mut file_paths = Vec::new();
         for dir in store.search_dirs() {
-            let path = dir.join(format!("{}.json", preset_name));
-            if path.exists() {
-                file_paths.push(path);
+            for path in loader::candidate_preset_paths_for_name(dir, preset_name) {
+                if path.exists() {
+                    file_paths.push(path);
+                }
             }
         }
+
+        // Deduplicate paths in case encoded and legacy are the same.
+        file_paths.sort();
+        file_paths.dedup();
 
         match file_paths.len() {
             0 => {
@@ -84,8 +80,8 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
             PresetSource::Inline => {
                 anyhow::bail!(
                     "Preset '{}' is an inline preset defined in settings.\n\n\
-                         Inline presets cannot be edited with this command.\n\
-                         Edit your settings file to modify inline presets.",
+                     Inline presets cannot be edited with this command.\n\\
+                     Edit your settings file to modify inline presets.",
                     preset_name
                 );
             }

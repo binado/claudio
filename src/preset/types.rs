@@ -73,7 +73,7 @@ impl ValidationResult {
 }
 
 impl Preset {
-    pub fn validate(&self, path: Option<&std::path::Path>) -> ValidationResult {
+    pub fn validate(&self, _path: Option<&std::path::Path>) -> ValidationResult {
         let mut result = ValidationResult::new();
 
         if self.name.trim().is_empty() {
@@ -121,16 +121,6 @@ impl Preset {
             }
         }
 
-        if let Some(path) = path
-            && let Some(file_stem) = path.file_stem().and_then(|s| s.to_str())
-            && self.name != file_stem
-        {
-            result.add_warning(format!(
-                "Preset name '{}' does not match filename '{}'",
-                self.name, file_stem
-            ));
-        }
-
         result
     }
 }
@@ -150,110 +140,12 @@ fn is_valid_env_key(key: &str) -> bool {
     chars.all(|c| c == '_' || c.is_ascii_uppercase() || c.is_ascii_digit())
 }
 
-/// Result of preset name validation
-#[derive(Debug, Clone, Default)]
-pub struct NameValidation {
-    /// Whether the name is safe to use (no path traversal, etc.)
-    pub is_safe: bool,
-    /// Optional style warnings (name is safe but doesn't follow conventions)
-    pub warnings: Vec<String>,
-}
-
-impl NameValidation {
-    /// Create a valid result with no warnings
-    pub fn valid() -> Self {
-        Self {
-            is_safe: true,
-            warnings: vec![],
-        }
-    }
-
-    /// Create an invalid result
-    pub fn invalid() -> Self {
-        Self {
-            is_safe: false,
-            warnings: vec![],
-        }
-    }
-}
-
-/// Validates a preset name for safety and style.
-///
-/// # Safety rules (must pass):
-/// - Non-empty
-/// - No path separators: `/`, `\`
-/// - No path traversal: `..` as a path component
-/// - No NUL bytes
-///
-/// # Style warnings (optional):
-/// - Name doesn't match recommended pattern `[a-z0-9][a-z0-9_-]*`
-///
-/// # Examples
-/// ```
-/// use claudio::preset::types::validate_preset_name;
-///
-/// let result = validate_preset_name("my-preset");
-/// assert!(result.is_safe);
-/// assert!(result.warnings.is_empty());
-///
-/// let result = validate_preset_name("../evil");
-/// assert!(!result.is_safe);
-///
-/// let result = validate_preset_name("MyPreset");
-/// assert!(result.is_safe);
-/// ```
-pub fn validate_preset_name(name: &str) -> NameValidation {
-    // Safety: reject dangerous patterns
-    if name.is_empty() {
-        return NameValidation::invalid();
-    }
-
-    // Check for NUL bytes
-    if name.contains('\0') {
-        return NameValidation::invalid();
-    }
-
-    // Check for path separators
-    if name.contains('/') || name.contains('\\') {
-        return NameValidation::invalid();
-    }
-
-    // Check for path traversal patterns
-    // Split on both separators to handle any sneaky attempts
-    for segment in name.split(['/']) {
-        if segment == ".." {
-            return NameValidation::invalid();
-        }
-    }
-
-    // Also check for ".." anywhere in the name as a safety measure
-    if name == ".." || name.starts_with("../") || name.ends_with("/..") || name.contains("/../") {
-        return NameValidation::invalid();
-    }
-
-    // Check against recommended pattern
-    use regex::Regex;
-    use std::sync::OnceLock;
-
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"^[a-z0-9][a-z0-9_-]*$").unwrap());
-
-    if !re.is_match(name) {
-        let mut validation = NameValidation::valid();
-        validation.warnings.push(format!(
-            "Name '{}' does not match recommended pattern: [a-z0-9][a-z0-9_-]*",
-            name
-        ));
-        return validation;
-    }
-
-    NameValidation::valid()
-}
+// NOTE: preset names are intentionally not validated for naming conventions.
+// Filenames on disk are derived from names via an encoding in `PresetStore`.
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     // ─────────────────────────────────────────────────────────────────────────────
     // is_valid_env_key tests
@@ -464,31 +356,6 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_name_filename_mismatch_warning() {
-        let preset = minimal_preset("my-preset");
-        let path = Path::new("/path/to/different-name.json");
-        let result = preset.validate(Some(path));
-        assert!(
-            result.is_valid(),
-            "name/filename mismatch should only be a warning"
-        );
-        assert!(
-            result
-                .warnings
-                .iter()
-                .any(|w| w.contains("does not match filename"))
-        );
-    }
-
-    #[test]
-    fn test_validate_name_filename_match() {
-        let preset = minimal_preset("my-preset");
-        let path = Path::new("/path/to/my-preset.json");
-        let result = preset.validate(Some(path));
-        assert!(result.warnings.is_empty());
-    }
-
-    #[test]
     fn test_validate_valid_preset() {
         let mut preset = minimal_preset("my-preset");
         preset.description = Some("A valid preset".to_string());
@@ -503,76 +370,5 @@ mod tests {
         let result = preset.validate(None);
         assert!(result.is_valid());
         assert!(result.warnings.is_empty());
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────────
-    // validate_preset_name tests
-    // ─────────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_validate_preset_name_safe_recommended() {
-        // Safe and follows recommended naming convention
-        let cases = ["my-preset", "default", "a1_b2", "test-preset-123"];
-        for name in cases {
-            let result = validate_preset_name(name);
-            assert!(result.is_safe, "Expected '{}' to be safe", name);
-            assert!(
-                result.warnings.is_empty(),
-                "Expected '{}' to have no warnings",
-                name
-            );
-        }
-    }
-
-    #[test]
-    fn test_validate_preset_name_non_standard_warning() {
-        // Non-standard names are allowed but with warnings
-        let cases = ["MyPreset", "foo.bar", "UPPERCASE", "CamelCase"];
-        for name in cases {
-            let result = validate_preset_name(name);
-            assert!(result.is_safe, "Expected '{}' to be safe", name);
-            assert!(
-                !result.warnings.is_empty(),
-                "Expected '{}' to have warnings",
-                name
-            );
-            assert!(
-                result.warnings[0].contains("does not match recommended pattern"),
-                "Expected appropriate warning message"
-            );
-        }
-    }
-
-    #[test]
-    fn test_validate_preset_name_path_traversal() {
-        // Dangerous: path traversal patterns
-        let cases = ["../evil", "a/../b", "..\\evil", "a\\..\\b", ".."];
-        for name in cases {
-            let result = validate_preset_name(name);
-            assert!(!result.is_safe, "Expected '{}' to be rejected", name);
-        }
-    }
-
-    #[test]
-    fn test_validate_preset_name_path_separators() {
-        // Dangerous: path separators
-        let cases = ["a/b", "a\\b", "path/to/preset", "dir\\preset"];
-        for name in cases {
-            let result = validate_preset_name(name);
-            assert!(!result.is_safe, "Expected '{}' to be rejected", name);
-        }
-    }
-
-    #[test]
-    fn test_validate_preset_name_empty_and_nul() {
-        // Dangerous: empty or contains NUL
-        assert!(
-            !validate_preset_name("").is_safe,
-            "Empty should be rejected"
-        );
-        assert!(
-            !validate_preset_name("foo\0bar").is_safe,
-            "NUL should be rejected"
-        );
     }
 }

@@ -234,7 +234,9 @@ pub fn list(
         match origin {
             Scope::Project => inline_project.push(preset_obj),
             Scope::User => inline_user.push(preset_obj),
-            Scope::Auto => inline_user.push(preset_obj),
+            Scope::Auto => unreachable!(
+                "Scope::Auto should not be returned as an origin by load_inline_presets_scoped"
+            ),
         }
     }
 

@@ -193,6 +193,15 @@ fn test_preset_path_for_name() {
     assert_eq!(path, std::path::PathBuf::from("/some/dir/my-preset.json"));
 }
 
+#[test]
+fn test_preset_path_for_name_weird_is_encoded() {
+    let dir = std::path::Path::new("/some/dir");
+    let path = loader::preset_path_for_name(dir, "a/b");
+
+    // Percent-encoding uses %2F for '/'
+    assert_eq!(path, std::path::PathBuf::from("/some/dir/a%2Fb.json"));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Preset Validation Tests
 // ─────────────────────────────────────────────────────────────────────────────
