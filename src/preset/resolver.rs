@@ -135,10 +135,12 @@ fn execute_command(command: &str, confirm: Option<bool>) -> Result<String> {
         .with_context(|| format!("Failed to execute command: {}", command))?;
 
     if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
         anyhow::bail!(
-            "Command failed with exit code {:?}: {}",
+            "Command failed with exit code {:?}: {}\n\nstderr:\n{}",
             output.status.code(),
-            command
+            command,
+            stderr.trim_end()
         );
     }
 
