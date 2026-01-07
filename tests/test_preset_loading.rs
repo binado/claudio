@@ -4,6 +4,7 @@ mod common;
 
 use claudio::preset::loader;
 use common::TestEnvironment;
+use serial_test::serial;
 use std::fs;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,6 +84,91 @@ fn test_load_nonexistent_file() {
     let path = std::path::Path::new("/nonexistent/path/preset.json");
     let result = loader::load_preset(path);
     assert!(result.is_err());
+}
+
+#[test]
+fn test_load_missing_required_fields() {
+    let env = TestEnvironment::new();
+
+    // Missing "name" field
+    let invalid_json = r#"{"description": "missing name"}"#;
+    let path = env.create_preset("user", "missing-name", invalid_json);
+
+    let result = loader::load_preset(&path);
+    assert!(result.is_err());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Preset Discovery Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+#[serial]
+fn test_discover_presets_user_only() {
+    let env = TestEnvironment::new();
+
+    env.create_preset("user", "p1", r#"{"name": "p1"}"#);
+    env.create_preset("user", "p2", r#"{"name": "p2"}"#);
+
+    unsafe {
+        std::env::set_var("CLAUDIO_HOME_DIR", env.home_path());
+    }
+
+    let presets = loader::discover_presets_scoped(claudio::cli::Scope::User).unwrap();
+
+    assert_eq!(presets.len(), 2);
+    let names: Vec<String> = presets
+        .iter()
+        .map(|p| p.file_stem().unwrap().to_str().unwrap().to_string())
+        .collect();
+
+    assert!(names.contains(&"p1".to_string()));
+    assert!(names.contains(&"p2".to_string()));
+
+    unsafe {
+        std::env::remove_var("CLAUDIO_HOME_DIR");
+    }
+}
+
+#[test]
+#[serial]
+fn test_discover_presets_both_scopes() {
+    let env = TestEnvironment::new();
+
+    // Create user presets
+    env.create_preset("user", "user-p", r#"{"name": "user-p"}"#);
+
+    // Create project presets (we'll mock the project root by setting CWD)
+    let project_dir = env.temp_dir.path().join("project");
+    fs::create_dir_all(project_dir.join(".claudio/presets")).unwrap();
+    fs::write(
+        project_dir.join(".claudio/presets/project-p.json"),
+        r#"{"name": "project-p"}"#,
+    )
+    .unwrap();
+
+    let old_cwd = std::env::current_dir().unwrap();
+    std::env::set_current_dir(&project_dir).unwrap();
+
+    unsafe {
+        std::env::set_var("CLAUDIO_HOME_DIR", env.home_path());
+    }
+
+    let presets = loader::discover_presets_scoped(claudio::cli::Scope::Auto).unwrap();
+
+    let names: Vec<String> = presets
+        .iter()
+        .map(|p| p.file_stem().unwrap().to_str().unwrap().to_string())
+        .collect();
+
+    assert!(names.contains(&"user-p".to_string()));
+    assert!(names.contains(&"project-p".to_string()));
+
+    // Clean up
+    std::env::set_current_dir(old_cwd).unwrap();
+    unsafe {
+        std::env::remove_var("CLAUDIO_HOME_DIR");
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
