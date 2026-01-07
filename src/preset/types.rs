@@ -13,6 +13,30 @@ pub struct Preset {
     pub settings: Option<serde_json::Value>,
 }
 
+/// The origin of a preset - either inline in settings or from a file
+#[derive(Debug, Clone)]
+pub enum PresetSource {
+    /// Inline preset defined in settings (no file on disk)
+    Inline,
+    /// File-based preset with its path
+    File(PathBuf),
+}
+
+impl PresetSource {
+    /// Returns the file path if this is a file-based preset
+    pub fn path(&self) -> Option<&PathBuf> {
+        match self {
+            PresetSource::Inline => None,
+            PresetSource::File(path) => Some(path),
+        }
+    }
+
+    /// Returns true if this is an inline preset
+    pub fn is_inline(&self) -> bool {
+        matches!(self, PresetSource::Inline)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ResolvedPreset {
     pub name: String,
@@ -21,7 +45,7 @@ pub struct ResolvedPreset {
     pub env: HashMap<String, String>,
     pub args: Vec<String>,
     pub settings: Option<serde_json::Value>,
-    pub source_path: PathBuf,
+    pub source: PresetSource,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -124,6 +148,90 @@ fn is_valid_env_key(key: &str) -> bool {
     }
 
     chars.all(|c| c == '_' || c.is_ascii_uppercase() || c.is_ascii_digit())
+}
+
+/// Result of preset name validation
+#[derive(Debug, Clone, Default)]
+pub struct NameValidation {
+    /// Whether the name is safe to use (no path traversal, etc.)
+    pub is_safe: bool,
+    /// Optional style warnings (name is safe but doesn't follow conventions)
+    pub warnings: Vec<String>,
+}
+
+impl NameValidation {
+    /// Create a valid result with no warnings
+    pub fn valid() -> Self {
+        Self {
+            is_safe: true,
+            warnings: vec![],
+        }
+    }
+
+    /// Create an invalid result
+    pub fn invalid() -> Self {
+        Self {
+            is_safe: false,
+            warnings: vec![],
+        }
+    }
+}
+
+/// Validates a preset name for safety and style.
+///
+/// # Safety rules (must pass):
+/// - Non-empty
+/// - No path separators: `/`, `\`
+/// - No path traversal: `..` as a path component
+/// - No NUL bytes
+///
+/// # Style warnings (optional):
+/// - Name doesn't match recommended pattern `[a-z0-9][a-z0-9_-]*`
+///
+/// # Examples
+/// ```
+/// use claudio::preset::types::validate_preset_name;
+///
+/// let result = validate_preset_name("my-preset");
+/// assert!(result.is_safe);
+/// assert!(result.warnings.is_empty());
+///
+/// let result = validate_preset_name("../evil");
+/// assert!(!result.is_safe);
+///
+/// let result = validate_preset_name("MyPreset");
+/// assert!(result.is_safe);
+/// ```
+pub fn validate_preset_name(name: &str) -> NameValidation {
+    // Safety: reject dangerous patterns
+    if name.is_empty() {
+        return NameValidation::invalid();
+    }
+
+    // Check for NUL bytes
+    if name.contains('\0') {
+        return NameValidation::invalid();
+    }
+
+    // Check for path separators
+    if name.contains('/') || name.contains('\\') {
+        return NameValidation::invalid();
+    }
+
+    // Check for path traversal patterns
+    // Split on both separators to handle any sneaky attempts
+    for segment in name.split(['/']) {
+        if segment == ".." {
+            return NameValidation::invalid();
+        }
+    }
+
+    // Also check for ".." anywhere in the name as a safety measure
+    if name == ".." || name.starts_with("../") || name.ends_with("/..") || name.contains("/../") {
+        return NameValidation::invalid();
+    }
+
+    NameValidation::valid()
 }
 
 #[cfg(test)]
@@ -379,5 +487,72 @@ mod tests {
         let result = preset.validate(None);
         assert!(result.is_valid());
         assert!(result.warnings.is_empty());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // validate_preset_name tests
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_validate_preset_name_safe_recommended() {
+        // Safe and follows recommended naming convention
+        let cases = ["my-preset", "default", "a1_b2", "test-preset-123"];
+        for name in cases {
+            let result = validate_preset_name(name);
+            assert!(result.is_safe, "Expected '{}' to be safe", name);
+            assert!(
+                result.warnings.is_empty(),
+                "Expected '{}' to have no warnings",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_preset_name_non_standard_allowed() {
+        // Non-standard names are allowed without warnings
+        let cases = ["MyPreset", "foo.bar", "UPPERCASE", "CamelCase"];
+        for name in cases {
+            let result = validate_preset_name(name);
+            assert!(result.is_safe, "Expected '{}' to be safe", name);
+            assert!(
+                result.warnings.is_empty(),
+                "Expected '{}' to have no warnings",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_preset_name_path_traversal() {
+        // Dangerous: path traversal patterns
+        let cases = ["../evil", "a/../b", "..\\evil", "a\\..\\b", ".."];
+        for name in cases {
+            let result = validate_preset_name(name);
+            assert!(!result.is_safe, "Expected '{}' to be rejected", name);
+        }
+    }
+
+    #[test]
+    fn test_validate_preset_name_path_separators() {
+        // Dangerous: path separators
+        let cases = ["a/b", "a\\b", "path/to/preset", "dir\\preset"];
+        for name in cases {
+            let result = validate_preset_name(name);
+            assert!(!result.is_safe, "Expected '{}' to be rejected", name);
+        }
+    }
+
+    #[test]
+    fn test_validate_preset_name_empty_and_nul() {
+        // Dangerous: empty or contains NUL
+        assert!(
+            !validate_preset_name("").is_safe,
+            "Empty should be rejected"
+        );
+        assert!(
+            !validate_preset_name("foo\0bar").is_safe,
+            "NUL should be rejected"
+        );
     }
 }

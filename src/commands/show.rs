@@ -1,27 +1,37 @@
 use crate::cli::Scope;
-use crate::preset::loader;
 use crate::preset::resolver;
+use crate::preset::store::PresetStore;
+use crate::preset::types::PresetSource;
 use anyhow::{Context, Result};
 
 pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) -> Result<()> {
-    let preset_path = loader::find_preset_scoped(preset_name, scope)
+    // Create a PresetStore for scope-aware lookups
+    let store = PresetStore::new(scope)?;
+
+    // Find the preset using PresetStore (validates name, respects scope)
+    let located = store
+        .find_required(preset_name)
         .with_context(|| format!("Failed to find preset: {}", preset_name))?;
 
-    let preset = loader::load_preset(&preset_path)
-        .with_context(|| format!("Failed to load preset: {}", preset_name))?;
-
     if json_only {
-        let json = serde_json::to_string_pretty(&preset)?;
+        let json = serde_json::to_string_pretty(&located.preset)?;
         println!("{}", json);
         return Ok(());
     }
 
+    // Format location string based on source
+    let location_str = match &located.source {
+        PresetSource::Inline => "(inline preset from settings)".to_string(),
+        PresetSource::File(path) => path.display().to_string(),
+    };
+
     if resolved {
-        let resolved_preset = resolver::resolve_inheritance(&preset)
-            .with_context(|| format!("Failed to resolve preset: {}", preset_name))?;
+        let resolved_preset =
+            resolver::resolve_inheritance_with_store(&located.preset, located.source, &store)
+                .with_context(|| format!("Failed to resolve preset: {}", preset_name))?;
 
         println!("Configuration: {} (resolved)", preset_name);
-        println!("Location: {}\n", preset_path.display());
+        println!("Location: {}\n", location_str);
 
         println!("Resolved Environment Variables:");
         for (key, value) in &resolved_preset.env {
@@ -59,9 +69,9 @@ pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) ->
         }
     } else {
         println!("Configuration: {}", preset_name);
-        println!("Location: {}\n", preset_path.display());
+        println!("Location: {}\n", location_str);
 
-        let json = serde_json::to_string_pretty(&preset)?;
+        let json = serde_json::to_string_pretty(&located.preset)?;
         println!("{}", json);
     }
 

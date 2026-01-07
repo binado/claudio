@@ -85,6 +85,113 @@ pub fn load_inline_preset(
     Ok(None)
 }
 
+/// Load an inline preset by name, honoring the same scope precedence as file presets.
+///
+/// For `Scope::Auto`:
+/// 1) Check project settings (if present)
+/// 2) If project settings has `ignore_user_presets: true`, do not consult user settings
+/// 3) Check user settings
+pub fn load_inline_preset_scoped(
+    name: &str,
+    scope: Scope,
+) -> Result<Option<crate::preset::types::Preset>> {
+    match scope {
+        Scope::Project => load_inline_preset(name, Scope::Project),
+        Scope::User => load_inline_preset(name, Scope::User),
+        Scope::Auto => {
+            // Project-first
+            let project_settings = match get_settings_path(Scope::Project) {
+                Ok(project_path) => {
+                    if project_path.exists() {
+                        load_settings(Scope::Project)?
+                    } else {
+                        None
+                    }
+                }
+                Err(_) => None,
+            };
+
+            if let Some(project_settings) = project_settings {
+                if let Some(preset) = project_settings.presets.iter().find(|p| p.name == name) {
+                    return Ok(Some(preset.clone()));
+                }
+
+                if project_settings.ignore_user_presets.unwrap_or(false) {
+                    return Ok(None);
+                }
+            }
+
+            // Fall back to user
+            load_inline_preset(name, Scope::User)
+        }
+    }
+}
+
+/// Load all inline presets visible to a scope, including their origin.
+///
+/// For `Scope::Auto`:
+/// - Project presets come first and shadow user presets with the same name.
+/// - If project settings has `ignore_user_presets: true`, user presets are not included.
+pub fn load_inline_presets_scoped(
+    scope: Scope,
+) -> Result<Vec<(Scope, crate::preset::types::Preset)>> {
+    let mut out: Vec<(Scope, crate::preset::types::Preset)> = Vec::new();
+
+    match scope {
+        Scope::Project => {
+            if let Some(settings) = load_settings(Scope::Project)? {
+                out.extend(settings.presets.into_iter().map(|p| (Scope::Project, p)));
+            }
+            Ok(out)
+        }
+        Scope::User => {
+            if let Some(settings) = load_settings(Scope::User)? {
+                out.extend(settings.presets.into_iter().map(|p| (Scope::User, p)));
+            }
+            Ok(out)
+        }
+        Scope::Auto => {
+            let mut ignore_user = false;
+            let mut seen_names: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
+
+            let project_settings = match get_settings_path(Scope::Project) {
+                Ok(project_path) => {
+                    if project_path.exists() {
+                        load_settings(Scope::Project)?
+                    } else {
+                        None
+                    }
+                }
+                Err(_) => None,
+            };
+
+            if let Some(project_settings) = project_settings {
+                ignore_user = project_settings.ignore_user_presets.unwrap_or(false);
+                for p in project_settings.presets {
+                    seen_names.insert(p.name.clone());
+                    out.push((Scope::Project, p));
+                }
+            }
+
+            if ignore_user {
+                return Ok(out);
+            }
+
+            if let Some(user_settings) = load_settings(Scope::User)? {
+                for p in user_settings.presets {
+                    if seen_names.contains(&p.name) {
+                        continue;
+                    }
+                    out.push((Scope::User, p));
+                }
+            }
+
+            Ok(out)
+        }
+    }
+}
+
 /// Resolve the color setting considering scope precedence
 ///
 /// For `Scope::Auto`: project settings take precedence over user settings
