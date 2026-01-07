@@ -1,39 +1,31 @@
 use crate::cli::Scope;
 use crate::preset::loader;
+use crate::preset::store::PresetStore;
 use anyhow::{Context, Result};
 
 use super::editor::open_in_editor;
 
 pub fn add(preset_name: &str, scope: Scope) -> Result<()> {
-    // 1. Check if preset already exists
-    let existing = loader::find_all_presets_scoped(preset_name, scope)?;
-    if !existing.is_empty() {
-        let existing_paths = existing
-            .iter()
-            .map(|p| format!("  - {}", p.display()))
-            .collect::<Vec<_>>()
-            .join("\n");
+    // Create a PresetStore for scope-aware lookups
+    let store = PresetStore::new(scope)?;
 
+    // 1. Check if preset already exists
+    if store.find(preset_name)?.is_some() {
         if matches!(scope, Scope::Auto) {
             anyhow::bail!(
-                "Preset '{}' already exists (in user and/or project scope) at:\n{}\n\n\
+                "Preset '{}' already exists (in user and/or project scope).\n\n\
                  If you want to create a preset with this name in a specific scope, \
                  rerun this command with the '--scope' flag (for example, '--scope user' or '--scope project').",
-                preset_name,
-                existing_paths
+                preset_name
             );
         } else {
-            anyhow::bail!(
-                "Preset '{}' already exists at:\n{}",
-                preset_name,
-                existing_paths
-            );
+            anyhow::bail!("Preset '{}' already exists.", preset_name);
         }
     }
 
     // 2. Create the new preset file
     let new_preset = loader::default_preset(preset_name);
-    let target_dir = loader::get_preset_write_dir_scoped(scope)?;
+    let target_dir = store.write_dir()?;
 
     // Ensure directory exists before writing.
     std::fs::create_dir_all(&target_dir).with_context(|| {
@@ -43,7 +35,7 @@ pub fn add(preset_name: &str, scope: Scope) -> Result<()> {
         )
     })?;
 
-    let new_path = loader::preset_path_for_name(&target_dir, preset_name);
+    let new_path = store.path_for_name(preset_name)?;
 
     // Atomic write to avoid partial files on interruption.
     loader::write_preset_atomic(&new_path, &new_preset)

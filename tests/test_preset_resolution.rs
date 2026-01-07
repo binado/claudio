@@ -206,7 +206,7 @@ fn test_loaded_preset_validation() {
 }
 
 #[test]
-fn test_loaded_preset_with_name_mismatch_warning() {
+fn test_loaded_preset_with_name_mismatch_no_warning() {
     let env = TestEnvironment::new();
 
     let preset_json = r#"{
@@ -218,14 +218,8 @@ fn test_loaded_preset_with_name_mismatch_warning() {
     let preset = loader::load_preset(&path).expect("Failed to load preset");
 
     let validation = preset.validate(Some(&path));
-    assert!(validation.is_valid()); // Mismatch is a warning, not an error
-    assert!(!validation.warnings.is_empty());
-    assert!(
-        validation
-            .warnings
-            .iter()
-            .any(|w| w.contains("does not match filename"))
-    );
+    assert!(validation.is_valid());
+    assert!(validation.warnings.is_empty());
 }
 
 #[test]

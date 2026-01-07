@@ -1,6 +1,6 @@
 use crate::cli::Scope;
-use crate::preset::loader;
 use crate::preset::resolver;
+use crate::preset::store::PresetStore;
 use anyhow::{Context, Result};
 
 fn shell_escape_double_quoted(value: &str) -> String {
@@ -23,14 +23,18 @@ fn shell_escape_double_quoted(value: &str) -> String {
 }
 
 pub fn env(preset_name: &str, scope: Scope, export: bool, resolved: bool) -> Result<()> {
-    let preset_path = loader::find_preset_scoped(preset_name, scope)
+    // Create a PresetStore for scope-aware lookups
+    let store = PresetStore::new(scope)?;
+
+    // Find the preset using PresetStore (validates name, respects scope)
+    let located = store
+        .find_required(preset_name)
         .with_context(|| format!("Failed to find preset: {}", preset_name))?;
 
-    let preset = loader::load_preset(&preset_path)
-        .with_context(|| format!("Failed to load preset: {}", preset_name))?;
-
-    let resolved_preset = resolver::resolve_inheritance(&preset)
-        .with_context(|| format!("Failed to resolve preset: {}", preset_name))?;
+    // Resolve using scope-aware resolver
+    let resolved_preset =
+        resolver::resolve_inheritance_with_store(&located.preset, located.source, &store)
+            .with_context(|| format!("Failed to resolve preset: {}", preset_name))?;
 
     if export {
         for (key, value) in &resolved_preset.env {
@@ -47,7 +51,7 @@ pub fn env(preset_name: &str, scope: Scope, export: bool, resolved: bool) -> Res
         }
     } else {
         println!("Environment variables for preset '{}':\n", preset_name);
-        if let Some(env_vars) = &preset.env {
+        if let Some(env_vars) = &located.preset.env {
             for (key, value) in env_vars {
                 println!("{}={}", key, value);
             }

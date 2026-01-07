@@ -1,7 +1,7 @@
 use crate::cli::Scope;
 use crate::color::ColorConfig;
-use crate::preset::loader;
 use crate::preset::resolver;
+use crate::preset::store::PresetStore;
 use crate::settings::loader as settings_loader;
 use anyhow::{Context, Result};
 use std::io::Write;
@@ -26,6 +26,9 @@ pub fn run(
         scope
     };
 
+    // Create a PresetStore for scope-aware lookups
+    let store = PresetStore::new(effective_scope)?;
+
     // Determine which preset to use
     let preset_to_use = match preset_name {
         Some(name) => {
@@ -40,7 +43,7 @@ pub fn run(
                     color_config.highlight(&default_name)
                 );
                 default_name
-            } else if loader::find_preset_scoped("default", effective_scope).is_ok() {
+            } else if store.find("default")?.is_some() {
                 // Fall back to "default" preset file
                 eprintln!("using preset {}", color_config.highlight("default"));
                 "default".to_string()
@@ -59,12 +62,15 @@ pub fn run(
         }
     };
 
-    // Try to find the preset (inline or file-based)
-    let preset = loader::find_preset_or_inline(&preset_to_use, effective_scope)?
+    // Find the preset using PresetStore (scope-aware, validates name)
+    let located = store
+        .find_required(&preset_to_use)
         .with_context(|| format!("Failed to find preset: {}", preset_to_use))?;
 
-    let resolved = resolver::resolve_inheritance(&preset)
-        .with_context(|| format!("Failed to resolve preset: {}", preset_to_use))?;
+    // Resolve using scope-aware resolver
+    let resolved =
+        resolver::resolve_inheritance_with_store(&located.preset, located.source, &store)
+            .with_context(|| format!("Failed to resolve preset: {}", preset_to_use))?;
 
     let mut cmd = Command::new("claude");
 

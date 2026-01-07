@@ -1,5 +1,5 @@
 use crate::preset::loader;
-use crate::preset::types::{Preset, ResolvedPreset};
+use crate::preset::types::{Preset, PresetSource, ResolvedPreset};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
@@ -114,12 +114,51 @@ fn merge_json_settings(
     }
 }
 
+/// Resolve preset inheritance using the default (unscoped) lookup behavior.
+///
+/// **Note**: This function is kept for backward compatibility. For scope-aware
+/// resolution, use `resolve_inheritance_with_store` instead.
+///
+/// This function looks up the preset's source path via `loader::find_preset`,
+/// which doesn't respect scope settings.
 pub fn resolve_inheritance(preset: &Preset) -> Result<ResolvedPreset> {
-    resolve_inheritance_recursive(preset, &mut HashSet::new(), &mut Vec::new())
+    // For backward compatibility, look up the source path the old way
+    let source_path = loader::find_preset(&preset.name)
+        .with_context(|| format!("Failed to find preset source path: {}", preset.name))?;
+    let source = PresetSource::File(source_path);
+
+    resolve_inheritance_recursive(preset, source, None, &mut HashSet::new(), &mut Vec::new())
+}
+
+/// Resolve preset inheritance with scope awareness.
+///
+/// This is the preferred function for resolving presets as it:
+/// - Respects the scope when looking up base presets
+/// - Properly handles inline presets (no disk lookup for source)
+/// - Uses the PresetStore for all lookups
+///
+/// # Arguments
+/// * `preset` - The preset to resolve
+/// * `source` - Where the preset came from (Inline or File)
+/// * `store` - The PresetStore to use for base preset lookups
+pub fn resolve_inheritance_with_store(
+    preset: &Preset,
+    source: PresetSource,
+    store: &crate::preset::store::PresetStore,
+) -> Result<ResolvedPreset> {
+    resolve_inheritance_recursive(
+        preset,
+        source,
+        Some(store),
+        &mut HashSet::new(),
+        &mut Vec::new(),
+    )
 }
 
 fn resolve_inheritance_recursive(
     preset: &Preset,
+    source: PresetSource,
+    store: Option<&crate::preset::store::PresetStore>,
     visited_set: &mut HashSet<String>,
     visited_vec: &mut Vec<String>,
 ) -> Result<ResolvedPreset> {
@@ -143,12 +182,29 @@ fn resolve_inheritance_recursive(
     let settings;
 
     if let Some(base_name) = &preset.extends {
-        let base_path = loader::find_preset(base_name)
-            .with_context(|| format!("Failed to find base preset: {}", base_name))?;
-        let base_preset = loader::load_preset(&base_path)
-            .with_context(|| format!("Failed to load base preset: {}", base_name))?;
+        // Look up base preset - use store if available (scope-aware), otherwise use loader
+        let (base_preset, base_source) = if let Some(s) = store {
+            // Scope-aware lookup via PresetStore
+            let located = s
+                .find_required(base_name)
+                .with_context(|| format!("Failed to find base preset: {}", base_name))?;
+            (located.preset, located.source)
+        } else {
+            // Fallback: unscoped lookup via loader (backward compatibility)
+            let base_path = loader::find_preset(base_name)
+                .with_context(|| format!("Failed to find base preset: {}", base_name))?;
+            let base_preset = loader::load_preset(&base_path)
+                .with_context(|| format!("Failed to load base preset: {}", base_name))?;
+            (base_preset, PresetSource::File(base_path))
+        };
 
-        let base_resolved = resolve_inheritance_recursive(&base_preset, visited_set, visited_vec)?;
+        let base_resolved = resolve_inheritance_recursive(
+            &base_preset,
+            base_source,
+            store,
+            visited_set,
+            visited_vec,
+        )?;
 
         for (key, value) in base_resolved.env {
             env_vars.entry(key).or_insert(value);
@@ -171,9 +227,6 @@ fn resolve_inheritance_recursive(
 
     visited_set.remove(&preset.name);
 
-    let source_path = loader::find_preset(&preset.name)
-        .with_context(|| format!("Failed to find preset source path: {}", preset.name))?;
-
     // Resolve variable substitutions in settings
     let resolved_settings = if let Some(s) = settings {
         Some(resolve_settings_variables(&s)?)
@@ -188,7 +241,7 @@ fn resolve_inheritance_recursive(
         env: env_vars,
         args,
         settings: resolved_settings,
-        source_path,
+        source,
     })
 }
 

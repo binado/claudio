@@ -2,10 +2,11 @@ use crate::cli::Scope;
 use crate::color::ColorConfig;
 use crate::preset::loader;
 use crate::preset::types::Preset;
+use crate::settings::loader as settings_loader;
 use anyhow::Result;
 use comfy_table::{Attribute, Cell, CellAlignment, ContentArrangement, Table};
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn validate_fields(fields: &[String]) -> Result<Vec<String>> {
     const VALID_FIELDS: &[&str] = &[
@@ -58,7 +59,7 @@ fn field_to_header(field: &str) -> &str {
 
 fn build_row(
     preset: &Preset,
-    path: &Path,
+    filepath_display: &str,
     fields: &[String],
     prompt_max_length: usize,
 ) -> Vec<Cell> {
@@ -68,7 +69,7 @@ fn build_row(
             let value = match field.as_str() {
                 "name" => preset.name.clone(),
                 "description" => preset.description.as_deref().unwrap_or("").to_string(),
-                "filepath" => path.display().to_string(),
+                "filepath" => filepath_display.to_string(),
                 "env" => preset
                     .env
                     .as_ref()
@@ -203,11 +204,103 @@ pub fn list(
 
         // Build rows dynamically based on display_fields
         for (path, preset_obj) in &dir_presets {
-            let row = build_row(preset_obj, path, &display_fields, prompt_max_length);
+            let filepath_display = path.display().to_string();
+            let row = build_row(
+                preset_obj,
+                &filepath_display,
+                &display_fields,
+                prompt_max_length,
+            );
             table.add_row(row);
         }
 
         // Print table with trimmed lines (removes leading whitespace from NOTHING preset)
+        for line in table.lines() {
+            println!("{}", line.trim());
+        }
+        println!();
+    }
+
+    // Inline presets (from settings)
+    let mut inline_project: Vec<Preset> = Vec::new();
+    let mut inline_user: Vec<Preset> = Vec::new();
+    for (origin, preset_obj) in settings_loader::load_inline_presets_scoped(scope)? {
+        if let Some(filter_name) = preset
+            && preset_obj.name != filter_name
+        {
+            continue;
+        }
+
+        match origin {
+            Scope::Project => inline_project.push(preset_obj),
+            Scope::User => inline_user.push(preset_obj),
+            Scope::Auto => unreachable!(
+                "Scope::Auto should not be returned as an origin by load_inline_presets_scoped"
+            ),
+        }
+    }
+
+    let inline_sections: Vec<(&str, Vec<Preset>)> = match scope {
+        Scope::Project => vec![("Inline", inline_project)],
+        Scope::User => vec![("Inline", inline_user)],
+        Scope::Auto => vec![
+            ("Inline (project)", inline_project),
+            ("Inline (user)", inline_user),
+        ],
+    };
+
+    for (label, presets) in inline_sections {
+        if presets.is_empty() {
+            continue;
+        }
+
+        println!("{}:", label);
+
+        let mut table = Table::new();
+        table
+            .load_preset(comfy_table::presets::NOTHING)
+            .set_content_arrangement(ContentArrangement::Disabled);
+
+        // Determine which fields to display
+        let display_fields: Cow<[String]> = if let Some(ref validated) = validated_fields {
+            Cow::Borrowed(validated)
+        } else if verbose {
+            Cow::Owned(vec![
+                "name".to_string(),
+                "description".to_string(),
+                "filepath".to_string(),
+                "env".to_string(),
+                "args".to_string(),
+                "extends".to_string(),
+                "prompt".to_string(),
+            ])
+        } else {
+            Cow::Owned(vec![
+                "name".to_string(),
+                "description".to_string(),
+                "filepath".to_string(),
+            ])
+        };
+
+        let headers: Vec<Cell> = display_fields
+            .iter()
+            .map(|f| {
+                let cell = Cell::new(field_to_header(f)).set_alignment(CellAlignment::Left);
+                if color_config.enabled {
+                    cell.fg(color_config.highlight_color.to_comfy_color())
+                        .add_attribute(Attribute::Bold)
+                } else {
+                    cell
+                }
+            })
+            .collect();
+        table.set_header(headers);
+
+        for preset_obj in &presets {
+            let row = build_row(preset_obj, "(inline)", &display_fields, prompt_max_length);
+            table.add_row(row);
+        }
+
         for line in table.lines() {
             println!("{}", line.trim());
         }

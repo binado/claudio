@@ -154,6 +154,105 @@ fn test_load_settings_with_inline_presets() {
     }
 }
 
+#[test]
+#[serial]
+fn test_load_inline_preset_scoped_auto_falls_back_to_user() {
+    let env = TestEnvironment::new();
+
+    // Project settings exists but does not define the preset
+    env.create_settings(
+        "project",
+        r#"{
+            "presets": [],
+            "ignore_user_presets": false
+        }"#,
+    );
+
+    // User settings defines the inline preset
+    env.create_settings(
+        "user",
+        r#"{
+            "presets": [
+                {
+                    "name": "user-inline",
+                    "env": { "API_KEY": "x" }
+                }
+            ]
+        }"#,
+    );
+
+    let old_cwd = std::env::current_dir().unwrap();
+    std::fs::create_dir_all(env.project_path()).unwrap();
+    std::env::set_current_dir(env.project_path()).unwrap();
+
+    unsafe {
+        std::env::set_var("CLAUDIO_HOME_DIR", env.home_path());
+    }
+
+    let preset = settings_loader::load_inline_preset_scoped("user-inline", Scope::Auto)
+        .expect("load should succeed");
+    assert!(
+        preset.is_some(),
+        "should find user inline preset in Auto scope"
+    );
+    assert_eq!(preset.unwrap().name, "user-inline");
+
+    // Clean up
+    std::env::set_current_dir(old_cwd).unwrap();
+    unsafe {
+        std::env::remove_var("CLAUDIO_HOME_DIR");
+    }
+}
+
+#[test]
+#[serial]
+fn test_load_inline_preset_scoped_auto_respects_ignore_user_presets() {
+    let env = TestEnvironment::new();
+
+    // Project settings opts out of user presets
+    env.create_settings(
+        "project",
+        r#"{
+            "presets": [],
+            "ignore_user_presets": true
+        }"#,
+    );
+
+    // User settings defines the inline preset
+    env.create_settings(
+        "user",
+        r#"{
+            "presets": [
+                {
+                    "name": "user-inline",
+                    "env": { "API_KEY": "x" }
+                }
+            ]
+        }"#,
+    );
+
+    let old_cwd = std::env::current_dir().unwrap();
+    std::fs::create_dir_all(env.project_path()).unwrap();
+    std::env::set_current_dir(env.project_path()).unwrap();
+
+    unsafe {
+        std::env::set_var("CLAUDIO_HOME_DIR", env.home_path());
+    }
+
+    let preset = settings_loader::load_inline_preset_scoped("user-inline", Scope::Auto)
+        .expect("load should succeed");
+    assert!(
+        preset.is_none(),
+        "should not consult user inline presets when ignore_user_presets is enabled"
+    );
+
+    // Clean up
+    std::env::set_current_dir(old_cwd).unwrap();
+    unsafe {
+        std::env::remove_var("CLAUDIO_HOME_DIR");
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Scope Precedence Tests
 // ─────────────────────────────────────────────────────────────────────────────

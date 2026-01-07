@@ -13,6 +13,30 @@ pub struct Preset {
     pub settings: Option<serde_json::Value>,
 }
 
+/// The origin of a preset - either inline in settings or from a file
+#[derive(Debug, Clone)]
+pub enum PresetSource {
+    /// Inline preset defined in settings (no file on disk)
+    Inline,
+    /// File-based preset with its path
+    File(PathBuf),
+}
+
+impl PresetSource {
+    /// Returns the file path if this is a file-based preset
+    pub fn path(&self) -> Option<&PathBuf> {
+        match self {
+            PresetSource::Inline => None,
+            PresetSource::File(path) => Some(path),
+        }
+    }
+
+    /// Returns true if this is an inline preset
+    pub fn is_inline(&self) -> bool {
+        matches!(self, PresetSource::Inline)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ResolvedPreset {
     pub name: String,
@@ -21,7 +45,7 @@ pub struct ResolvedPreset {
     pub env: HashMap<String, String>,
     pub args: Vec<String>,
     pub settings: Option<serde_json::Value>,
-    pub source_path: PathBuf,
+    pub source: PresetSource,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -49,7 +73,7 @@ impl ValidationResult {
 }
 
 impl Preset {
-    pub fn validate(&self, path: Option<&std::path::Path>) -> ValidationResult {
+    pub fn validate(&self, _path: Option<&std::path::Path>) -> ValidationResult {
         let mut result = ValidationResult::new();
 
         if self.name.trim().is_empty() {
@@ -97,16 +121,6 @@ impl Preset {
             }
         }
 
-        if let Some(path) = path
-            && let Some(file_stem) = path.file_stem().and_then(|s| s.to_str())
-            && self.name != file_stem
-        {
-            result.add_warning(format!(
-                "Preset name '{}' does not match filename '{}'",
-                self.name, file_stem
-            ));
-        }
-
         result
     }
 }
@@ -126,10 +140,13 @@ fn is_valid_env_key(key: &str) -> bool {
     chars.all(|c| c == '_' || c.is_ascii_uppercase() || c.is_ascii_digit())
 }
 
+// NOTE: preset names are intentionally not validated for naming conventions.
+// Filenames on disk are derived from names via encoding in the loader module,
+// e.g., via `loader::preset_path_for_name` and related helpers.
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     // ─────────────────────────────────────────────────────────────────────────────
     // is_valid_env_key tests
@@ -337,31 +354,6 @@ mod tests {
         preset.settings = Some(serde_json::json!({"key": "value"}));
         let result = preset.validate(None);
         assert!(result.is_valid());
-    }
-
-    #[test]
-    fn test_validate_name_filename_mismatch_warning() {
-        let preset = minimal_preset("my-preset");
-        let path = Path::new("/path/to/different-name.json");
-        let result = preset.validate(Some(path));
-        assert!(
-            result.is_valid(),
-            "name/filename mismatch should only be a warning"
-        );
-        assert!(
-            result
-                .warnings
-                .iter()
-                .any(|w| w.contains("does not match filename"))
-        );
-    }
-
-    #[test]
-    fn test_validate_name_filename_match() {
-        let preset = minimal_preset("my-preset");
-        let path = Path::new("/path/to/my-preset.json");
-        let result = preset.validate(Some(path));
-        assert!(result.warnings.is_empty());
     }
 
     #[test]
