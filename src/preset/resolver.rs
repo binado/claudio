@@ -83,16 +83,12 @@ fn resolve_direct_value(value: &str) -> Result<String> {
 /// Resolve a file path relative to the preset source location
 fn resolve_file_path(path: &str, source: &PresetSource) -> Result<PathBuf> {
     // Expand tilde (~) to home directory
-    let path = if let Some(stripped) = path.strip_prefix("~/") {
-        let home = std::env::var("HOME")
-            .or_else(|_| std::env::var("USERPROFILE"))
-            .context("Could not determine home directory")?;
-        PathBuf::from(home).join(stripped)
-    } else if path == "~" {
-        let home = std::env::var("HOME")
-            .or_else(|_| std::env::var("USERPROFILE"))
-            .context("Could not determine home directory")?;
-        PathBuf::from(home)
+    let path = if path == "~" || path.starts_with("~/") {
+        let home = directories::BaseDirs::new()
+            .context("Could not determine home directory")?
+            .home_dir()
+            .to_owned();
+        home.join(path.strip_prefix("~/").unwrap_or(""))
     } else {
         PathBuf::from(path)
     };
