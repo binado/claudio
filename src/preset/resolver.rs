@@ -51,9 +51,7 @@ fn resolve_env_value(env_value: &EnvValue, source: &PresetSource) -> Result<Stri
                     .with_context(|| format!("Failed to read file: {}", resolved_path.display()))?;
                 Ok(content.trim_end().to_string())
             }
-            EnvValueSource::Command { command, confirm } => {
-                execute_command(command, *confirm, source)
-            }
+            EnvValueSource::Command { command, confirm } => execute_command(command, *confirm),
         },
     }
 }
@@ -115,9 +113,9 @@ fn resolve_file_path(path: &str, source: &PresetSource) -> Result<PathBuf> {
 }
 
 /// Execute a command and return its stdout
-fn execute_command(command: &str, confirm: Option<bool>, source: &PresetSource) -> Result<String> {
+fn execute_command(command: &str, confirm: Option<bool>) -> Result<String> {
     // Determine if we should confirm based on settings and command-specific flag
-    let should_confirm = should_confirm_command(confirm, source)?;
+    let should_confirm = should_confirm_command(confirm)?;
 
     if should_confirm {
         prompt_user_confirmation(command)?;
@@ -148,7 +146,7 @@ fn execute_command(command: &str, confirm: Option<bool>, source: &PresetSource) 
 }
 
 /// Determine if command execution should prompt for confirmation
-fn should_confirm_command(confirm: Option<bool>, _source: &PresetSource) -> Result<bool> {
+fn should_confirm_command(confirm: Option<bool>) -> Result<bool> {
     // If confirm is explicitly set on the command, use that
     if let Some(confirm_value) = confirm {
         return Ok(confirm_value);
