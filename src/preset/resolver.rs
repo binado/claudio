@@ -138,8 +138,15 @@ fn execute_command(command: &str, confirm: Option<bool>, source: &PresetSource) 
         prompt_user_confirmation(command)?;
     }
 
-    let output = Command::new("sh")
-        .arg("-c")
+    // Choose shell per platform to support Windows and Unix-like systems
+    let (shell, shell_arg) = if cfg!(target_os = "windows") {
+        ("cmd", "/C")
+    } else {
+        ("sh", "-c")
+    };
+
+    let output = Command::new(shell)
+        .arg(shell_arg)
         .arg(command)
         .output()
         .with_context(|| format!("Failed to execute command: {}", command))?;
