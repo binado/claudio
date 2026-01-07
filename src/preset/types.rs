@@ -231,6 +231,22 @@ pub fn validate_preset_name(name: &str) -> NameValidation {
         return NameValidation::invalid();
     }
 
+    // Check against recommended pattern
+    use regex::Regex;
+    use std::sync::OnceLock;
+
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"^[a-z0-9][a-z0-9_-]*$").unwrap());
+
+    if !re.is_match(name) {
+        let mut validation = NameValidation::valid();
+        validation.warnings.push(format!(
+            "Name '{}' does not match recommended pattern: [a-z0-9][a-z0-9_-]*",
+            name
+        ));
+        return validation;
+    }
+
     NameValidation::valid()
 }
 
@@ -509,16 +525,20 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_preset_name_non_standard_allowed() {
-        // Non-standard names are allowed without warnings
+    fn test_validate_preset_name_non_standard_warning() {
+        // Non-standard names are allowed but with warnings
         let cases = ["MyPreset", "foo.bar", "UPPERCASE", "CamelCase"];
         for name in cases {
             let result = validate_preset_name(name);
             assert!(result.is_safe, "Expected '{}' to be safe", name);
             assert!(
-                result.warnings.is_empty(),
-                "Expected '{}' to have no warnings",
+                !result.warnings.is_empty(),
+                "Expected '{}' to have warnings",
                 name
+            );
+            assert!(
+                result.warnings[0].contains("does not match recommended pattern"),
+                "Expected appropriate warning message"
             );
         }
     }
