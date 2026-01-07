@@ -31,17 +31,6 @@ pub fn resolve_variables_with_source(
     Ok(resolved)
 }
 
-/// Legacy function for backward compatibility
-/// Uses the old behavior of looking up preset source via loader
-pub fn resolve_variables(preset: &Preset) -> Result<HashMap<String, String>> {
-    // For backward compatibility, look up the source path the old way
-    let source_path = loader::find_preset(&preset.name)
-        .with_context(|| format!("Failed to find preset source path: {}", preset.name))?;
-    let source = PresetSource::File(source_path);
-
-    resolve_variables_with_source(preset, &source)
-}
-
 /// Resolve a single environment value
 fn resolve_env_value(env_value: &EnvValue, source: &PresetSource) -> Result<String> {
     match env_value {
