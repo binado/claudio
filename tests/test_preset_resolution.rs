@@ -1,9 +1,18 @@
 //! Integration tests for preset inheritance and variable resolution.
 //!
-//! Note: Full inheritance chain tests are complex due to the application's
-//! search path logic (project + user directories). The core merge/inheritance
-//! logic is tested in the unit tests within resolver.rs. These integration tests
-//! focus on testing the simpler variable resolution functionality.
+//! Testing strategy:
+//! - The core merge/inheritance behavior is validated in unit tests within
+//!   `resolver.rs`, where the inheritance graph can be exercised in isolation
+//!   from the filesystem search path.
+//! - These integration tests focus on variable resolution and basic preset
+//!   loading, using a simplified environment layout.
+//!
+//! Full inheritance-chain integration tests (covering project + user
+//! directory search path resolution end-to-end) are intentionally deferred to
+//! keep this suite focused and maintainable.
+//! TODO: Add dedicated end-to-end tests for the full inheritance/search-path
+//!       behavior once a stable test harness for complex directory layouts is
+//!       available (see issue #XXX).
 
 mod common;
 
