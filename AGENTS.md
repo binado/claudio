@@ -212,7 +212,7 @@ Example:
     "ANTHROPIC_AUTH_TOKEN": "${ANTHROPIC_API_KEY}"
   },
   "settings": {
-    "system-prompt": "${CUSTOM_PROMPT}"
+    "systemPrompt": "${CUSTOM_PROMPT}"
   }
 }
 ```
@@ -312,9 +312,9 @@ Settings validation checks:
   "description": "Code review preset with custom settings",
   "settings": {
     "model": "opus",
-    "permission-mode": "acceptEdits",
-    "allowed-tools": ["Bash", "Edit", "Read", "Grep"],
-    "max-budget-usd": 5
+    "permissionMode": "acceptEdits",
+    "allowedTools": ["Bash", "Edit", "Read", "Grep"],
+    "maxBudgetUsd": 5
   },
   "env": {
     "ANTHROPIC_AUTH_TOKEN": "${MINIMAX_API_KEY}"
