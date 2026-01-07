@@ -210,16 +210,27 @@ fn test_find_project_root_git_also_works() {
 #[test]
 fn test_find_project_root_none() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let empty_dir = temp_dir.path().join("empty");
+    let empty_dir = temp_dir.path().join("deeply/nested/empty/dir");
     fs::create_dir_all(&empty_dir).unwrap();
 
-    // No markers in path, should return None
-    // Note: This might find markers higher in the filesystem, so we test behavior
+    // No markers exist within temp_dir, so any found root must be above temp_dir
     let found = loader::find_project_root(&empty_dir);
-    // The result depends on where the temp dir is located
-    // In CI/isolated environments this should be None
-    // We just verify it doesn't panic
-    let _ = found;
+
+    match found {
+        None => {
+            // Expected in isolated environments - no markers found anywhere
+        }
+        Some(root) => {
+            // If a root is found, it must be ABOVE our temp directory
+            // (e.g., a .git in /tmp or user's home), not within it
+            assert!(
+                !root.starts_with(temp_dir.path()),
+                "Found root {:?} should not be within temp dir {:?}",
+                root,
+                temp_dir.path()
+            );
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
