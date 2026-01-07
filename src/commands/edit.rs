@@ -80,7 +80,7 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
             PresetSource::Inline => {
                 anyhow::bail!(
                     "Preset '{}' is an inline preset defined in settings.\n\n\
-                     Inline presets cannot be edited with this command.\n\\
+                     Inline presets cannot be edited with this command.\n\
                      Edit your settings file to modify inline presets.",
                     preset_name
                 );
