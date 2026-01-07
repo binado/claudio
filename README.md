@@ -1,16 +1,6 @@
 # claudio
 
-**claudio** is a lightweight Rust CLI tool that lets you seamlessly switch between different Claude Code model providers on the fly.
-
-## Why claudio?
-
-When working with Claude Code, you might want to:
-- Switch between different API providers (Anthropic, OpenRouter, custom endpoints)
-- Use different model configurations for different projects
-- Test against multiple providers without changing your code
-- Keep API keys separate from your workflow
-
-claudio makes this effortless by acting as a smart wrapper around the `claude` binary, injecting the right environment variables based on your provider configuration.
+**claudio** is a lightweight Rust CLI tool that lets you seamlessly switch between different Claude Code configurations using workflow-focused presets.
 
 ## Installation
 
@@ -18,7 +8,7 @@ claudio makes this effortless by acting as a smart wrapper around the `claude` b
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/binado/claudio.git
 cd claudio
 
 # Build and install
@@ -31,174 +21,291 @@ cargo install --path .
 cargo install claudio
 ```
 
-## Quick Start
-
-### 1. Create a configuration file
-
-Create `~/.claude/providers.json`:
-
-```json
-{
-  "providers": {
-    "anthropic": {
-      "api_endpoint": "https://api.anthropic.com",
-      "opus_model": "claude-opus-4-20250514",
-      "sonnet_model": "claude-sonnet-4-20250514",
-      "haiku_model": "claude-haiku-4-20250514"
-    },
-    "openrouter": {
-      "api_endpoint": "https://openrouter.ai/api/v1",
-      "opus_model": "anthropic/claude-opus-4",
-      "sonnet_model": "anthropic/claude-sonnet-4",
-      "haiku_model": "anthropic/claude-haiku-4"
-    }
-  }
-}
-```
-
-### 2. Set your API key
-
-```bash
-# Set as environment variable
-export ANTHROPIC_API_KEY="your-api-key-here"
-
-# Or for OpenRouter
-export OPENROUTER_API_KEY="your-openrouter-key"
-```
-
-### 3. Run Claude Code with your provider
-
-```bash
-# Use Anthropic
-claudio anthropic
-
-# Use OpenRouter
-claudio openrouter
-
-# Use default (no provider override)
-claudio
-```
-
 ## Usage
 
-### Basic Usage
+Claudio uses **presets** - complete configuration recipes for running Claude Code. Instead of manually setting environment variables or passing CLI flags every time, create reusable presets for different workflows:
+
+- `minimax-fast` - Minimax provider with MCPs disabled for speed
+- `openrouter` - OpenRouter API for accessing multiple models
+- `local-dev` - Local development endpoint for testing
+- `code-review` - Custom settings optimized for code reviews
+
+### Quick Start
+
+Initialize claudio in your project or user directory:
 
 ```bash
-# Launch with a specific provider
-claudio <provider>
+# Initialize in project directory (./.claudio/)
+claudio init --scope project
 
-# Use custom config file
-claudio <provider> -c /path/to/config.json
-
-# Pass API key directly
-claudio anthropic --api-key sk-ant-...
-
-# Forward arguments to Claude Code
-claudio anthropic -- --help
-claudio openrouter -- --verbose
+# Initialize in user directory (~/.claudio/)
+claudio init --scope user
 ```
 
-### Command Line Options
+Add your first preset:
 
-```
-claudio [PROVIDER] [OPTIONS] [-- CLAUDE_ARGS...]
-
-Arguments:
-  [PROVIDER]  Provider name from your config file (optional)
-
-Options:
-  -c, --config-file <FILE>  Custom configuration file path
-      --api-key <KEY>       API key (overrides environment variable)
-  -h, --help                Print help
-  -V, --version             Print version
-
-  [CLAUDE_ARGS...]          Arguments to pass to Claude Code
+```bash
+# Create a new preset (opens in your default editor)
+claudio preset add minimax-fast --scope user
 ```
 
-### Configuration File
-
-The configuration file uses the following structure:
+Edit the preset file:
 
 ```json
 {
-  "providers": {
-    "provider_name": {
-      "api_endpoint": "https://api.example.com",
-      "opus_model": "model-name-opus",
-      "sonnet_model": "model-name-sonnet",
-      "haiku_model": "model-name-haiku"
-    }
-  }
+  "name": "minimax-fast",
+  "description": "Minimax with MCPs disabled for speed",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.minimax.io/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "${MINIMAX_API_KEY}",
+    "ANTHROPIC_MODEL": "MiniMax-M2.1",
+    "ANTHROPIC_SMALL_FAST_MODEL": "MiniMax-M2.1",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M2.1",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "MiniMax-M2.1",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M2.1"
+  },
+  "args": ["--no-mcp"]
 }
 ```
 
-**Default location:** `~/.claude/providers.json`
-
-### Environment Variables
-
-claudio sets the following environment variables when launching Claude Code:
-
-- `ANTHROPIC_BASE_URL` - Provider's API endpoint
-- `ANTHROPIC_DEFAULT_OPUS_MODEL` - Opus model name
-- `ANTHROPIC_DEFAULT_SONNET_MODEL` - Sonnet model name
-- `ANTHROPIC_DEFAULT_HAIKU_MODEL` - Haiku model name
-- `ANTHROPIC_AUTH_TOKEN` - API key
-
-### API Key Resolution
-
-API keys are resolved in the following order (first match wins):
-
-1. `--api-key` command line flag
-2. `{PROVIDER}_API_KEY` environment variable (e.g., `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`)
-
-## Examples
-
-### Example 1: Multiple Providers
+Run Claude Code with your preset:
 
 ```bash
-# Work session with Anthropic
-export ANTHROPIC_API_KEY="sk-ant-..."
-claudio anthropic
+# Set your API key
+export MINIMAX_API_KEY="your-api-key-here"
 
-# Switch to OpenRouter for testing
-export OPENROUTER_API_KEY="sk-or-..."
-claudio openrouter
+# Run with the preset
+claudio run minimax-fast
+
+# Pass additional arguments to claude
+claudio run minimax-fast -- --verbose
 ```
 
-### Example 2: Project-Specific Configuration
+### Managing Presets
+
+<details>
+<summary><strong>List presets</strong></summary>
 
 ```bash
-# Use project-specific config
-claudio mycompany -c ./config/providers.json
+# List all available presets
+claudio preset list
+
+# List presets from specific scope
+claudio preset list --scope user
+claudio preset list --scope project
+
+# Verbose output with full details
+claudio preset list --verbose
+
+# Search for a specific preset
+claudio preset list minimax-fast
+
+# Custom fields display
+claudio preset list --fields name,description,filepath
+claudio preset list --fields all
 ```
 
-### Example 3: Pass-Through Mode
+**Example output:**
+```
+Available presets:
+
+User (~/.claudio/presets/):
+  minimax-fast           Minimax with MCPs disabled for speed
+  openrouter             OpenRouter API for multiple models
+
+Project (./.claudio/presets/):
+  code-review            Code review with custom settings
+
+3 presets found
+```
+</details>
+
+<details>
+<summary><strong>Show preset details</strong></summary>
 
 ```bash
-# Run Claude Code normally (no provider override)
-claudio
+# Show raw preset JSON
+claudio preset show minimax-fast
 
-# This is equivalent to just running:
+# Show resolved preset (with variable substitution and inheritance)
+claudio preset show minimax-fast --resolved
+
+# Output raw JSON only
+claudio preset show minimax-fast --json
+```
+
+**Example output:**
+```
+Configuration: minimax-fast
+Location: /Users/you/.claudio/presets/minimax-fast.json
+
+{
+  "name": "minimax-fast",
+  "description": "Minimax with MCPs disabled for speed",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.minimax.io/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "${MINIMAX_API_KEY}",
+    "ANTHROPIC_MODEL": "MiniMax-M2.1",
+    "ANTHROPIC_SMALL_FAST_MODEL": "MiniMax-M2.1",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M2.1",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "MiniMax-M2.1",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M2.1"
+  },
+  "args": ["--no-mcp"]
+}
+```
+</details>
+
+<details>
+<summary><strong>Add new preset</strong></summary>
+
+```bash
+# Create a new preset in user directory
+claudio preset add my-preset --scope user
+
+# Create a new preset in project directory
+claudio preset add project-config --scope project
+```
+
+This creates a new preset file with a default template and opens it in your default editor (`$VISUAL`, `$EDITOR`, or `vi`).
+</details>
+
+<details>
+<summary><strong>Edit existing preset</strong></summary>
+
+```bash
+# Edit a preset
+claudio preset edit minimax-fast
+
+# Edit preset in specific scope
+claudio preset edit minimax-fast --scope user
+```
+
+Opens the preset file in your default editor.
+</details>
+
+<details>
+<summary><strong>View environment variables</strong></summary>
+
+```bash
+# Print environment variables that would be set
+claudio preset env minimax-fast
+
+# Format for shell export
+claudio preset env minimax-fast --export
+
+# Show resolved values (with variable substitution)
+claudio preset env minimax-fast --resolved
+```
+
+**Shell usage:**
+```bash
+# Apply preset env vars to current shell
+eval "$(claudio preset env minimax-fast --export)"
+
+# Now run claude directly with these vars
 claude
 ```
+</details>
 
-### Example 4: Custom Endpoint
+### Settings and Scope
+
+Claudio supports two configuration scopes:
+
+1. **User scope** (`~/.claudio/`) - Global presets available across all projects
+2. **Project scope** (`./.claudio/`) - Project-specific presets that shadow user presets
+
+#### Settings File
+
+The settings file (`settings.json`) controls default behavior:
 
 ```json
 {
-  "providers": {
-    "local": {
-      "api_endpoint": "http://localhost:8000",
-      "opus_model": "local-opus",
-      "sonnet_model": "local-sonnet",
-      "haiku_model": "local-haiku"
-    }
+  "default_preset": "minimax-fast",
+  "color": "cyan",
+  "no_color": false,
+  "require_preset": false,
+  "ignore_user_presets": false,
+  "presets": []
+}
+```
+
+**Settings fields:**
+- `default_preset` - Preset to use when none is specified
+- `color` - Default highlight color (cyan, green, yellow, blue, magenta)
+- `no_color` - Disable colored output
+- `require_preset` - Error if no preset is available instead of running bare claude
+- `ignore_user_presets` - Only use project presets (project settings only)
+- `presets` - Inline preset definitions (alternative to separate files)
+
+#### Scope Examples
+
+```bash
+# Run with default preset (uses setting from settings.json)
+claudio run
+
+# Require a preset to be available
+claudio run --require-preset
+
+# Use specific scope
+claudio run minimax-fast --scope user
+claudio run project-config --scope project
+```
+
+#### Advanced: Preset Features
+
+**Variable Substitution:**
+```json
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "${ANTHROPIC_API_KEY}",
+    "CUSTOM_VAR": "${MY_CUSTOM_VAR}"
   }
 }
 ```
 
+**Preset Inheritance:**
+```json
+{
+  "name": "minimax-fast",
+  "extends": "base",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.minimax.chat/v1"
+  }
+}
+```
+
+**Default Prompts:**
+```json
+{
+  "name": "quick-commit",
+  "prompt": "Review the git changes and create a commit",
+  "args": []
+}
+```
+
+**Claude Code Settings:**
+```json
+{
+  "name": "code-review",
+  "settings": {
+    "model": "opus",
+    "permissionMode": "acceptEdits",
+    "allowedTools": ["Bash", "Edit", "Read", "Grep"],
+    "maxBudgetUsd": 5
+  }
+}
+```
+
+#### Custom Home Directory
+
+For testing or isolated environments, use `CLAUDIO_HOME_DIR`:
+
 ```bash
-claudio local --api-key test-key
+# Use a custom home directory
+export CLAUDIO_HOME_DIR=/tmp/test-claudio
+mkdir -p /tmp/test-claudio/.claudio/presets
+claudio preset list
 ```
 
 ## Development
@@ -215,7 +322,7 @@ cargo install --locked prek
 prek install
 ```
 
-This will set up git hooks that automatically run:
+This sets up git hooks that automatically run:
 - `cargo fmt` - Code formatting check (pre-commit)
 - `cargo clippy` - Linting (pre-commit)
 
@@ -245,8 +352,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Built for use with [Claude Code](https://claude.ai/code)
-- Inspired by the need for flexible provider management in AI development workflows
