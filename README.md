@@ -270,7 +270,7 @@ claudio run project-config --scope project
   "name": "minimax-fast",
   "extends": "base",
   "env": {
-    "ANTHROPIC_BASE_URL": "https://api.minimax.chat/v1"
+    "ANTHROPIC_BASE_URL": "https://api.minimax.io/anthropic"
   }
 }
 ```
