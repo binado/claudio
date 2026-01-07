@@ -56,3 +56,54 @@ pub fn env(preset_name: &str, scope: Scope, export: bool, resolved: bool) -> Res
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_shell_escape_no_special_chars() {
+        assert_eq!(shell_escape_double_quoted("plain text"), "plain text");
+        assert_eq!(shell_escape_double_quoted("hello123"), "hello123");
+    }
+
+    #[test]
+    fn test_shell_escape_backslash() {
+        assert_eq!(
+            shell_escape_double_quoted(r"path\to\file"),
+            r"path\\to\\file"
+        );
+    }
+
+    #[test]
+    fn test_shell_escape_double_quote() {
+        assert_eq!(
+            shell_escape_double_quoted(r#"say "hello""#),
+            r#"say \"hello\""#
+        );
+    }
+
+    #[test]
+    fn test_shell_escape_dollar_sign() {
+        assert_eq!(shell_escape_double_quoted("$HOME"), r"\$HOME");
+        assert_eq!(shell_escape_double_quoted("${VAR}"), r"\${VAR}");
+    }
+
+    #[test]
+    fn test_shell_escape_backtick() {
+        assert_eq!(shell_escape_double_quoted("`command`"), r"\`command\`");
+    }
+
+    #[test]
+    fn test_shell_escape_combined() {
+        // A string with multiple special characters
+        let input = r#"echo "$HOME" && `ls`"#;
+        let expected = r#"echo \"\$HOME\" && \`ls\`"#;
+        assert_eq!(shell_escape_double_quoted(input), expected);
+    }
+
+    #[test]
+    fn test_shell_escape_empty() {
+        assert_eq!(shell_escape_double_quoted(""), "");
+    }
+}

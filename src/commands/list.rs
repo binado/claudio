@@ -225,3 +225,97 @@ pub fn list(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // validate_fields tests
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_validate_fields_valid() {
+        let fields = vec!["name".to_string(), "description".to_string()];
+        let result = validate_fields(&fields).unwrap();
+        assert_eq!(result, vec!["name", "description"]);
+    }
+
+    #[test]
+    fn test_validate_fields_all_valid_fields() {
+        let fields = vec![
+            "name".to_string(),
+            "description".to_string(),
+            "filepath".to_string(),
+            "env".to_string(),
+            "args".to_string(),
+            "extends".to_string(),
+            "prompt".to_string(),
+        ];
+        let result = validate_fields(&fields).unwrap();
+        assert_eq!(result.len(), 7);
+    }
+
+    #[test]
+    fn test_validate_fields_invalid() {
+        let fields = vec!["name".to_string(), "invalid_field".to_string()];
+        let result = validate_fields(&fields);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid field"));
+    }
+
+    #[test]
+    fn test_validate_fields_all_keyword() {
+        let fields = vec!["all".to_string()];
+        let result = validate_fields(&fields).unwrap();
+        assert_eq!(result.len(), 7);
+        assert!(result.contains(&"name".to_string()));
+        assert!(result.contains(&"prompt".to_string()));
+    }
+
+    #[test]
+    fn test_validate_fields_all_case_insensitive() {
+        let fields = vec!["ALL".to_string()];
+        let result = validate_fields(&fields).unwrap();
+        assert_eq!(result.len(), 7);
+
+        let fields = vec!["All".to_string()];
+        let result = validate_fields(&fields).unwrap();
+        assert_eq!(result.len(), 7);
+    }
+
+    #[test]
+    fn test_validate_fields_case_insensitive() {
+        let fields = vec!["NAME".to_string(), "Description".to_string()];
+        let result = validate_fields(&fields).unwrap();
+        assert_eq!(result, vec!["name", "description"]);
+    }
+
+    #[test]
+    fn test_validate_fields_whitespace_handling() {
+        let fields = vec!["  name  ".to_string(), " description ".to_string()];
+        let result = validate_fields(&fields).unwrap();
+        assert_eq!(result, vec!["name", "description"]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // field_to_header tests
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_field_to_header_known_fields() {
+        assert_eq!(field_to_header("name"), "Name");
+        assert_eq!(field_to_header("description"), "Description");
+        assert_eq!(field_to_header("filepath"), "Filepath");
+        assert_eq!(field_to_header("env"), "Env Vars");
+        assert_eq!(field_to_header("args"), "Args");
+        assert_eq!(field_to_header("extends"), "Extends");
+        assert_eq!(field_to_header("prompt"), "Prompt");
+    }
+
+    #[test]
+    fn test_field_to_header_unknown_field() {
+        assert_eq!(field_to_header("unknown"), "unknown");
+        assert_eq!(field_to_header("custom_field"), "custom_field");
+    }
+}

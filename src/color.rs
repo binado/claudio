@@ -85,3 +85,124 @@ impl ColorConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // HighlightColor tests
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_highlight_color_parse_valid() {
+        assert!(matches!(
+            HighlightColor::parse("cyan"),
+            Some(HighlightColor::Cyan)
+        ));
+        assert!(matches!(
+            HighlightColor::parse("green"),
+            Some(HighlightColor::Green)
+        ));
+        assert!(matches!(
+            HighlightColor::parse("yellow"),
+            Some(HighlightColor::Yellow)
+        ));
+        assert!(matches!(
+            HighlightColor::parse("blue"),
+            Some(HighlightColor::Blue)
+        ));
+        assert!(matches!(
+            HighlightColor::parse("magenta"),
+            Some(HighlightColor::Magenta)
+        ));
+    }
+
+    #[test]
+    fn test_highlight_color_parse_case_insensitive() {
+        assert!(matches!(
+            HighlightColor::parse("CYAN"),
+            Some(HighlightColor::Cyan)
+        ));
+        assert!(matches!(
+            HighlightColor::parse("Cyan"),
+            Some(HighlightColor::Cyan)
+        ));
+        assert!(matches!(
+            HighlightColor::parse("GREEN"),
+            Some(HighlightColor::Green)
+        ));
+    }
+
+    #[test]
+    fn test_highlight_color_parse_invalid() {
+        assert!(HighlightColor::parse("red").is_none());
+        assert!(HighlightColor::parse("purple").is_none());
+        assert!(HighlightColor::parse("").is_none());
+        assert!(HighlightColor::parse("invalid").is_none());
+    }
+
+    #[test]
+    fn test_highlight_color_to_comfy_color() {
+        assert!(matches!(
+            HighlightColor::Cyan.to_comfy_color(),
+            comfy_table::Color::Cyan
+        ));
+        assert!(matches!(
+            HighlightColor::Green.to_comfy_color(),
+            comfy_table::Color::Green
+        ));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // ColorConfig tests
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    #[serial]
+    fn test_color_config_new_enabled() {
+        // Ensure NO_COLOR is not set for this test
+        unsafe {
+            std::env::remove_var("NO_COLOR");
+        }
+
+        let config = ColorConfig::new(HighlightColor::Green, true);
+        assert!(config.enabled);
+        assert!(matches!(config.highlight_color, HighlightColor::Green));
+    }
+
+    #[test]
+    fn test_color_config_new_disabled() {
+        let config = ColorConfig::new(HighlightColor::Blue, false);
+        assert!(!config.enabled);
+    }
+
+    #[test]
+    #[serial]
+    fn test_color_config_highlight_enabled() {
+        unsafe {
+            std::env::remove_var("NO_COLOR");
+        }
+
+        let config = ColorConfig::new(HighlightColor::Cyan, true);
+        let result = config.highlight("test");
+        // When enabled, the result should contain ANSI escape codes
+        assert!(result.contains("test"));
+    }
+
+    #[test]
+    fn test_color_config_highlight_disabled() {
+        let config = ColorConfig::new(HighlightColor::Cyan, false);
+        let result = config.highlight("test");
+        // When disabled, should return plain text
+        assert_eq!(result, "test");
+    }
+
+    #[test]
+    fn test_color_config_error_disabled() {
+        let config = ColorConfig::new(HighlightColor::Cyan, false);
+        let result = config.error("error message");
+        assert_eq!(result, "error message");
+    }
+}
