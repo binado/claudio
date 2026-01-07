@@ -26,7 +26,7 @@ Claudio is a preset-based configuration manager for Claude Code. It shifts from 
   "args": ["--flag", "--option", "value"],
   "settings": {
     "model": "sonnet",
-    "permission-mode": "acceptEdits"
+    "permissionMode": "acceptEdits"
   }
 }
 ```
