@@ -1,39 +1,195 @@
+use crate::cli::Scope;
 use crate::preset::loader;
-use crate::preset::types::{Preset, PresetSource, ResolvedPreset};
+use crate::preset::types::{EnvValue, EnvValueSource, Preset, PresetSource, ResolvedPreset};
+use crate::settings::loader as settings_loader;
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
+use std::io::{self, Write};
+use std::path::PathBuf;
+use std::process::Command;
 use std::sync::LazyLock;
 
 static VAR_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\$\{([A-Z_][A-Z0-9_]*)\}").expect("Invalid regex pattern"));
 
-pub fn resolve_variables(preset: &Preset) -> Result<HashMap<String, String>> {
+/// Resolve environment variables for a preset
+/// This is the new signature that requires PresetSource for file path resolution
+pub fn resolve_variables_with_source(
+    preset: &Preset,
+    source: &PresetSource,
+) -> Result<HashMap<String, String>> {
     let mut resolved = HashMap::new();
 
     if let Some(env_vars) = &preset.env {
         for (key, value) in env_vars {
-            // Check all variables exist before replacement
-            for caps in VAR_REGEX.captures_iter(value) {
-                let var_name = &caps[1];
-                std::env::var(var_name).with_context(|| {
-                    format!(
-                        "Environment variable '{}' is not set.\n\nSet it with:\n  export {}=your_value",
-                        var_name, var_name
-                    )
-                })?;
-            }
-
-            // Now replace (we know all vars exist)
-            let resolved_value = VAR_REGEX.replace_all(value, |caps: &regex::Captures| {
-                let var_name = &caps[1];
-                std::env::var(var_name).expect("Variable should exist (already validated)")
-            });
-            resolved.insert(key.clone(), resolved_value.to_string());
+            let resolved_value = resolve_env_value(value, source)?;
+            resolved.insert(key.clone(), resolved_value);
         }
     }
 
     Ok(resolved)
+}
+
+/// Legacy function for backward compatibility
+/// Uses the old behavior of looking up preset source via loader
+pub fn resolve_variables(preset: &Preset) -> Result<HashMap<String, String>> {
+    // For backward compatibility, look up the source path the old way
+    let source_path = loader::find_preset(&preset.name)
+        .with_context(|| format!("Failed to find preset source path: {}", preset.name))?;
+    let source = PresetSource::File(source_path);
+
+    resolve_variables_with_source(preset, &source)
+}
+
+/// Resolve a single environment value
+fn resolve_env_value(env_value: &EnvValue, source: &PresetSource) -> Result<String> {
+    match env_value {
+        EnvValue::Direct(s) => resolve_direct_value(s),
+        EnvValue::Structured {
+            source: value_source,
+        } => match value_source {
+            EnvValueSource::Value { value } => Ok(value.clone()),
+            EnvValueSource::Env { var } => std::env::var(var).with_context(|| {
+                format!(
+                    "Environment variable '{}' is not set.\n\nSet it with:\n  export {}=your_value",
+                    var, var
+                )
+            }),
+            EnvValueSource::File { path } => {
+                let resolved_path = resolve_file_path(path, source)?;
+                let content = std::fs::read_to_string(&resolved_path)
+                    .with_context(|| format!("Failed to read file: {}", resolved_path.display()))?;
+                Ok(content.trim_end().to_string())
+            }
+            EnvValueSource::Command { command, confirm } => {
+                execute_command(command, *confirm, source)
+            }
+        },
+    }
+}
+
+/// Resolve direct string values (legacy ${VAR} syntax)
+fn resolve_direct_value(value: &str) -> Result<String> {
+    // Check all variables exist before replacement
+    for caps in VAR_REGEX.captures_iter(value) {
+        let var_name = &caps[1];
+        std::env::var(var_name).with_context(|| {
+            format!(
+                "Environment variable '{}' is not set.\n\nSet it with:\n  export {}=your_value",
+                var_name, var_name
+            )
+        })?;
+    }
+
+    // Now replace (we know all vars exist)
+    let resolved_value = VAR_REGEX.replace_all(value, |caps: &regex::Captures| {
+        let var_name = &caps[1];
+        std::env::var(var_name).expect("Variable should exist (already validated)")
+    });
+
+    Ok(resolved_value.to_string())
+}
+
+/// Resolve a file path relative to the preset source location
+fn resolve_file_path(path: &str, source: &PresetSource) -> Result<PathBuf> {
+    // Expand tilde (~) to home directory
+    let path = if let Some(stripped) = path.strip_prefix("~/") {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .context("Could not determine home directory")?;
+        PathBuf::from(home).join(stripped)
+    } else if path == "~" {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .context("Could not determine home directory")?;
+        PathBuf::from(home)
+    } else {
+        PathBuf::from(path)
+    };
+
+    // If already absolute, use as-is
+    if path.is_absolute() {
+        return Ok(path);
+    }
+
+    // For relative paths, resolve based on preset source
+    match source {
+        PresetSource::File(preset_path) => {
+            // Resolve relative to the preset file's directory
+            let preset_dir = preset_path
+                .parent()
+                .ok_or_else(|| anyhow::anyhow!("Invalid preset path: no parent directory"))?;
+            Ok(preset_dir.join(path))
+        }
+        PresetSource::Inline => {
+            // For inline presets, resolve from current directory
+            Ok(std::env::current_dir()?.join(path))
+        }
+    }
+}
+
+/// Execute a command and return its stdout
+fn execute_command(command: &str, confirm: Option<bool>, source: &PresetSource) -> Result<String> {
+    // Determine if we should confirm based on settings and command-specific flag
+    let should_confirm = should_confirm_command(confirm, source)?;
+
+    if should_confirm {
+        prompt_user_confirmation(command)?;
+    }
+
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .output()
+        .with_context(|| format!("Failed to execute command: {}", command))?;
+
+    if !output.status.success() {
+        anyhow::bail!(
+            "Command failed with exit code {:?}: {}",
+            output.status.code(),
+            command
+        );
+    }
+
+    Ok(String::from_utf8(output.stdout)?.trim_end().to_string())
+}
+
+/// Determine if command execution should prompt for confirmation
+fn should_confirm_command(confirm: Option<bool>, _source: &PresetSource) -> Result<bool> {
+    // If confirm is explicitly set on the command, use that
+    if let Some(confirm_value) = confirm {
+        return Ok(confirm_value);
+    }
+
+    // Otherwise check the global setting
+    // Try to load settings from auto scope
+    let skip_confirmation = if let Ok(Some(settings)) = settings_loader::load_settings(Scope::Auto)
+    {
+        settings.skip_command_confirmation.unwrap_or(false)
+    } else {
+        false
+    };
+
+    // Default to requiring confirmation (secure by default)
+    Ok(!skip_confirmation)
+}
+
+/// Prompt user for confirmation before executing a command
+fn prompt_user_confirmation(command: &str) -> Result<()> {
+    println!("\nPreset wants to execute command:");
+    println!("  {}", command);
+    print!("Allow? [y/N]: ");
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    if !input.trim().eq_ignore_ascii_case("y") {
+        anyhow::bail!("Command execution denied by user");
+    }
+
+    Ok(())
 }
 
 pub fn resolve_settings_variables(settings: &serde_json::Value) -> Result<serde_json::Value> {
@@ -177,7 +333,7 @@ fn resolve_inheritance_recursive(
     visited_set.insert(preset.name.clone());
     visited_vec.push(preset.name.clone());
 
-    let mut env_vars = resolve_variables(preset)?;
+    let mut env_vars = resolve_variables_with_source(preset, &source)?;
     let args;
     let settings;
 
@@ -255,7 +411,7 @@ mod tests {
     // resolve_variables tests
     // ─────────────────────────────────────────────────────────────────────────────
 
-    fn preset_with_env(env: HashMap<String, String>) -> Preset {
+    fn preset_with_env(env: HashMap<String, EnvValue>) -> Preset {
         Preset {
             name: "test".to_string(),
             description: None,
@@ -278,17 +434,22 @@ mod tests {
             args: None,
             settings: None,
         };
-        let result = resolve_variables(&preset).unwrap();
+        let source = PresetSource::Inline; // Use Inline since we don't have a real file
+        let result = resolve_variables_with_source(&preset, &source).unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
     fn test_resolve_variables_no_substitution() {
         let mut env = HashMap::new();
-        env.insert("API_URL".to_string(), "https://api.example.com".to_string());
+        env.insert(
+            "API_URL".to_string(),
+            EnvValue::Direct("https://api.example.com".to_string()),
+        );
         let preset = preset_with_env(env);
+        let source = PresetSource::Inline;
 
-        let result = resolve_variables(&preset).unwrap();
+        let result = resolve_variables_with_source(&preset, &source).unwrap();
         assert_eq!(result.get("API_URL").unwrap(), "https://api.example.com");
     }
 
@@ -301,10 +462,14 @@ mod tests {
         }
 
         let mut env = HashMap::new();
-        env.insert("API_KEY".to_string(), "${TEST_API_KEY}".to_string());
+        env.insert(
+            "API_KEY".to_string(),
+            EnvValue::Direct("${TEST_API_KEY}".to_string()),
+        );
         let preset = preset_with_env(env);
+        let source = PresetSource::Inline;
 
-        let result = resolve_variables(&preset).unwrap();
+        let result = resolve_variables_with_source(&preset, &source).unwrap();
         assert_eq!(result.get("API_KEY").unwrap(), "secret123");
 
         // Clean up
@@ -324,11 +489,12 @@ mod tests {
         let mut env = HashMap::new();
         env.insert(
             "API_URL".to_string(),
-            "https://${TEST_HOST}:${TEST_PORT}/api".to_string(),
+            EnvValue::Direct("https://${TEST_HOST}:${TEST_PORT}/api".to_string()),
         );
         let preset = preset_with_env(env);
+        let source = PresetSource::Inline;
 
-        let result = resolve_variables(&preset).unwrap();
+        let result = resolve_variables_with_source(&preset, &source).unwrap();
         assert_eq!(
             result.get("API_URL").unwrap(),
             "https://example.com:8080/api"
@@ -345,11 +511,12 @@ mod tests {
         let mut env = HashMap::new();
         env.insert(
             "API_KEY".to_string(),
-            "${NONEXISTENT_VAR_12345}".to_string(),
+            EnvValue::Direct("${NONEXISTENT_VAR_12345}".to_string()),
         );
         let preset = preset_with_env(env);
+        let source = PresetSource::Inline;
 
-        let result = resolve_variables(&preset);
+        let result = resolve_variables_with_source(&preset, &source);
         assert!(result.is_err());
         assert!(
             result

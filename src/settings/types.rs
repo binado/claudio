@@ -29,6 +29,11 @@ pub struct Settings {
     /// If true, ignore user-level presets (only honored in project settings)
     #[serde(default)]
     pub ignore_user_presets: Option<bool>,
+
+    /// If true, skip command confirmation prompts (commands will run without asking)
+    /// Default is false (prompts enabled for security)
+    #[serde(default)]
+    pub skip_command_confirmation: Option<bool>,
 }
 
 impl Settings {

@@ -2,13 +2,56 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+/// Represents a value for an environment variable or setting field.
+/// Supports both simple string values (for backward compatibility) and
+/// structured value sources (env, file, command, or direct value).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum EnvValue {
+    /// Direct string value - can be a literal or contain ${VAR} substitutions
+    /// This variant maintains backward compatibility with existing presets
+    Direct(String),
+
+    /// Structured value source with explicit source specification
+    Structured {
+        #[serde(flatten)]
+        source: EnvValueSource,
+    },
+}
+
+/// Specifies where to get the value from for an environment variable or setting
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "from")]
+pub enum EnvValueSource {
+    /// Direct value assignment
+    #[serde(rename = "value")]
+    Value { value: String },
+
+    /// Reference to an environment variable
+    #[serde(rename = "env")]
+    Env { var: String },
+
+    /// Read value from a file (path relative to preset file location)
+    #[serde(rename = "file")]
+    File { path: String },
+
+    /// Execute a command and use its stdout
+    /// Requires user confirmation by default (can be overridden by setting)
+    #[serde(rename = "command")]
+    Command {
+        command: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        confirm: Option<bool>,
+    },
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Preset {
     pub name: String,
     pub description: Option<String>,
     pub extends: Option<String>,
     pub prompt: Option<String>,
-    pub env: Option<HashMap<String, String>>,
+    pub env: Option<HashMap<String, EnvValue>>,
     pub args: Option<Vec<String>>,
     pub settings: Option<serde_json::Value>,
 }
@@ -102,8 +145,49 @@ impl Preset {
                     ));
                 }
 
-                if value.is_empty() {
-                    result.add_warning(format!("env key '{}' has an empty value", key));
+                // Validate the value based on its type
+                match value {
+                    EnvValue::Direct(s) => {
+                        if s.is_empty() {
+                            result.add_warning(format!("env key '{}' has an empty value", key));
+                        }
+                    }
+                    EnvValue::Structured { source } => match source {
+                        EnvValueSource::Value { value: v } => {
+                            if v.is_empty() {
+                                result.add_warning(format!("env key '{}' has an empty value", key));
+                            }
+                        }
+                        EnvValueSource::Env { var } => {
+                            if var.trim().is_empty() {
+                                result.add_error(format!(
+                                    "env key '{}': variable name cannot be empty",
+                                    key
+                                ));
+                            }
+                        }
+                        EnvValueSource::File { path } => {
+                            if path.trim().is_empty() {
+                                result.add_error(format!(
+                                    "env key '{}': file path cannot be empty",
+                                    key
+                                ));
+                            }
+                        }
+                        EnvValueSource::Command { command, .. } => {
+                            if command.trim().is_empty() {
+                                result.add_error(format!(
+                                    "env key '{}': command cannot be empty",
+                                    key
+                                ));
+                            } else {
+                                result.add_warning(format!(
+                                    "env key '{}': command execution poses security risks",
+                                    key
+                                ));
+                            }
+                        }
+                    },
                 }
             }
         }
@@ -289,7 +373,10 @@ mod tests {
     fn test_validate_invalid_env_key() {
         let mut preset = minimal_preset("my-preset");
         let mut env = HashMap::new();
-        env.insert("lowercase_key".to_string(), "value".to_string());
+        env.insert(
+            "lowercase_key".to_string(),
+            EnvValue::Direct("value".to_string()),
+        );
         preset.env = Some(env);
         let result = preset.validate(None);
         assert!(!result.is_valid());
@@ -305,7 +392,7 @@ mod tests {
     fn test_validate_empty_env_value_warning() {
         let mut preset = minimal_preset("my-preset");
         let mut env = HashMap::new();
-        env.insert("API_KEY".to_string(), "".to_string());
+        env.insert("API_KEY".to_string(), EnvValue::Direct("".to_string()));
         preset.env = Some(env);
         let result = preset.validate(None);
         assert!(
@@ -363,7 +450,10 @@ mod tests {
         preset.extends = Some("base".to_string());
         preset.prompt = Some("Do something".to_string());
         let mut env = HashMap::new();
-        env.insert("API_KEY".to_string(), "${MY_API_KEY}".to_string());
+        env.insert(
+            "API_KEY".to_string(),
+            EnvValue::Direct("${MY_API_KEY}".to_string()),
+        );
         preset.env = Some(env);
         preset.args = Some(vec!["--verbose".to_string()]);
         preset.settings = Some(serde_json::json!({"model": "sonnet"}));
