@@ -398,6 +398,7 @@ mod tests {
     use super::*;
     use serde_json::json;
     use serial_test::serial;
+    use tempfile::tempdir;
 
     // ─────────────────────────────────────────────────────────────────────────────
     // resolve_variables tests
@@ -516,6 +517,114 @@ mod tests {
                 .to_string()
                 .contains("NONEXISTENT_VAR_12345")
         );
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_variables_structured_env_source() {
+        unsafe {
+            std::env::set_var("TEST_STRUCTURED_ENV_VAR", "structured_value");
+        }
+
+        let mut env = HashMap::new();
+        env.insert(
+            "API_KEY".to_string(),
+            EnvValue::Structured {
+                source: EnvValueSource::Env {
+                    var: "TEST_STRUCTURED_ENV_VAR".to_string(),
+                },
+            },
+        );
+
+        let preset = preset_with_env(env);
+        let source = PresetSource::Inline;
+        let result = resolve_variables_with_source(&preset, &source).unwrap();
+        assert_eq!(result.get("API_KEY").unwrap(), "structured_value");
+
+        unsafe {
+            std::env::remove_var("TEST_STRUCTURED_ENV_VAR");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_variables_structured_file_source_relative_to_preset_file() {
+        let dir = tempdir().unwrap();
+        let preset_path = dir.path().join("preset.json");
+        std::fs::write(&preset_path, "{}\n").unwrap();
+
+        let secret_path = dir.path().join("secret.txt");
+        std::fs::write(&secret_path, "file_secret\n").unwrap();
+
+        let mut env = HashMap::new();
+        env.insert(
+            "TOKEN".to_string(),
+            EnvValue::Structured {
+                source: EnvValueSource::File {
+                    path: "secret.txt".to_string(),
+                },
+            },
+        );
+        let preset = preset_with_env(env);
+
+        let source = PresetSource::File(preset_path);
+        let result = resolve_variables_with_source(&preset, &source).unwrap();
+        assert_eq!(result.get("TOKEN").unwrap(), "file_secret");
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_variables_structured_command_source_success_no_confirm() {
+        let command = if cfg!(target_os = "windows") {
+            "echo cmd_value"
+        } else {
+            "printf cmd_value"
+        };
+
+        let mut env = HashMap::new();
+        env.insert(
+            "FROM_CMD".to_string(),
+            EnvValue::Structured {
+                source: EnvValueSource::Command {
+                    command: command.to_string(),
+                    confirm: Some(false),
+                },
+            },
+        );
+        let preset = preset_with_env(env);
+        let source = PresetSource::Inline;
+
+        let result = resolve_variables_with_source(&preset, &source).unwrap();
+        assert_eq!(result.get("FROM_CMD").unwrap(), "cmd_value");
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_variables_structured_command_source_failure_includes_stderr() {
+        let command = if cfg!(target_os = "windows") {
+            // Write to stderr and exit non-zero
+            "echo cmd_err 1>&2 & exit /B 7"
+        } else {
+            "echo cmd_err 1>&2; exit 7"
+        };
+
+        let mut env = HashMap::new();
+        env.insert(
+            "FROM_CMD".to_string(),
+            EnvValue::Structured {
+                source: EnvValueSource::Command {
+                    command: command.to_string(),
+                    confirm: Some(false),
+                },
+            },
+        );
+        let preset = preset_with_env(env);
+        let source = PresetSource::Inline;
+
+        let err = resolve_variables_with_source(&preset, &source).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("stderr:"));
+        assert!(msg.contains("cmd_err"));
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
