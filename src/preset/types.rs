@@ -141,7 +141,8 @@ fn is_valid_env_key(key: &str) -> bool {
 }
 
 // NOTE: preset names are intentionally not validated for naming conventions.
-// Filenames on disk are derived from names via an encoding in `PresetStore`.
+// Filenames on disk are derived from names via encoding in the loader module,
+// e.g., via `loader::preset_path_for_name` and related helpers.
 
 #[cfg(test)]
 mod tests {
