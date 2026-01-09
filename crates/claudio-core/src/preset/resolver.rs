@@ -290,19 +290,6 @@ fn merge_json_settings(
     }
 }
 
-/// Resolve preset inheritance using the default (unscoped) lookup behavior.
-///
-/// **Note**: This function is kept for backward compatibility. For scope-aware
-/// resolution, use `resolve_inheritance_with_store` instead.
-///
-/// This function looks up the preset's source path via `loader::find_preset`,
-/// which doesn't respect scope settings.
-pub fn resolve_inheritance(_preset: &Preset) -> Result<ResolvedPreset> {
-    anyhow::bail!(
-        "Unscoped preset resolution is not supported. Use resolve_inheritance_with_store and a ResolverConfig."
-    )
-}
-
 /// Resolve preset inheritance with scope awareness.
 ///
 /// This is the preferred function for resolving presets as it:

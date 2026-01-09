@@ -4,27 +4,6 @@ use crate::util::get_claudio_home;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
-pub fn discover_presets() -> Result<Vec<PathBuf>> {
-    let mut presets = Vec::new();
-    for dir in get_preset_dirs() {
-        if let Ok(entries) = std::fs::read_dir(&dir) {
-            for entry in entries.flatten() {
-                if entry
-                    .path()
-                    .extension()
-                    .map(|e| e == "json")
-                    .unwrap_or(false)
-                {
-                    presets.push(entry.path());
-                }
-            }
-        }
-    }
-    presets.sort();
-    presets.dedup();
-    Ok(presets)
-}
-
 pub fn discover_presets_scoped(scope: Scope) -> Result<Vec<PathBuf>> {
     let mut presets = Vec::new();
     for dir in get_preset_dirs_scoped(scope)? {
@@ -119,22 +98,6 @@ pub fn find_preset(name: &str) -> Result<PathBuf> {
     )
 }
 
-/// Try to find a preset - first checking inline presets in settings, then file-based presets
-pub fn find_preset_or_inline(name: &str, scope: Scope) -> Result<Option<Preset>> {
-    // First try inline preset from settings
-    if let Some(inline_preset) = crate::settings::loader::load_inline_preset(name, scope)? {
-        return Ok(Some(inline_preset));
-    }
-
-    // Then try file-based preset
-    if let Ok(path) = find_preset_scoped(name, scope) {
-        let preset = load_preset(&path)?;
-        return Ok(Some(preset));
-    }
-
-    Ok(None)
-}
-
 pub fn find_preset_scoped(name: &str, scope: Scope) -> Result<PathBuf> {
     let dirs = get_preset_dirs_scoped(scope)?;
     for dir in &dirs {
@@ -148,19 +111,6 @@ pub fn find_preset_scoped(name: &str, scope: Scope) -> Result<PathBuf> {
         name,
         format_search_locations(&dirs)
     )
-}
-
-pub fn find_all_presets(name: &str) -> Vec<PathBuf> {
-    let mut matches = Vec::new();
-    for dir in get_preset_dirs() {
-        let paths = candidate_preset_paths_for_name(&dir, name);
-        for path in paths {
-            if path.exists() {
-                matches.push(path);
-            }
-        }
-    }
-    matches
 }
 
 pub fn find_all_presets_scoped(name: &str, scope: Scope) -> Result<Vec<PathBuf>> {
@@ -286,15 +236,6 @@ pub fn get_preset_write_dir_scoped(scope: Scope) -> Result<PathBuf> {
             }
         }
     }
-}
-
-/// Returns the directory where new presets should be created/edited.
-///
-/// Preference order:
-/// 1) Project-local `<project-root>/.claudio/presets` (if we can determine a project root)
-/// 2) User-global `~/.claudio/presets`
-pub fn get_preset_write_dir() -> Result<PathBuf> {
-    get_preset_write_dir_scoped(Scope::Auto)
 }
 
 /// Returns preset directories for a given scope.
