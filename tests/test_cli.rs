@@ -659,7 +659,7 @@ fn test_cli_run_explicit_without_preset_name_uses_default() {
 
 #[test]
 #[serial]
-fn test_cli_run_shorthand_with_scope_precedence() {
+fn test_cli_preset_env_with_scope_precedence() {
     let env = TestEnvironment::new();
 
     // Create preset in user scope
