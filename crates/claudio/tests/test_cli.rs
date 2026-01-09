@@ -270,13 +270,7 @@ fn test_preset_add_with_extend_alias() {
     let output = run_claudio(
         &env.project_dir,
         &[
-            "preset",
-            "add",
-            "derived",
-            "--extend",
-            "base",
-            "--scope",
-            "project",
+            "preset", "add", "derived", "--extend", "base", "--scope", "project",
         ],
         &[
             ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
