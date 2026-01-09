@@ -11,14 +11,19 @@ fn main() -> ExitCode {
 
     // Determine the scope for settings lookup (default to Auto for global settings)
     let settings_scope = match &cli.command {
-        Commands::Run { scope, .. } | Commands::Init { scope } => scope.scope,
-        Commands::Preset { command } => match command {
+        Some(Commands::Run(args)) => args.scope.scope,
+        Some(Commands::Init { scope }) => scope.scope,
+        Some(Commands::Preset { command }) => match command {
             PresetCommands::List { scope, .. }
             | PresetCommands::Show { scope, .. }
             | PresetCommands::Edit { scope, .. }
             | PresetCommands::Add { scope, .. }
             | PresetCommands::Env { scope, .. } => scope.scope,
         },
+        None => {
+            // For shorthand syntax, use the run_args scope
+            cli.run_args.scope.scope
+        }
     };
 
     // Initialize color config with settings as defaults, CLI flags override
@@ -71,33 +76,15 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
     let exit_code = match &cli.command {
-        Commands::Run {
-            preset,
-            scope,
-            require_preset,
-            claude_args,
-        } => {
-            // Check for ignore_user_presets conflict with --scope user
-            if scope.scope == Scope::User && settings_loader::should_ignore_user_presets()? {
-                anyhow::bail!(
-                    "Cannot use --scope user: project settings have 'ignore_user_presets' enabled.\n\n\
-                     Remove the --scope flag or update your project settings."
-                );
-            }
-
-            claudio::commands::run::run(
-                preset.as_deref(),
-                scope.scope,
-                *require_preset,
-                claude_args,
-                &color_config,
-            )?
+        Some(Commands::Run(args)) => {
+            // Explicit: claudio run my-preset
+            execute_run_command(args, &color_config)?
         }
-        Commands::Init { scope } => {
+        Some(Commands::Init { scope }) => {
             claudio::commands::init::init(scope.scope)?;
             ExitCode::SUCCESS
         }
-        Commands::Preset { command } => match command {
+        Some(Commands::Preset { command }) => match command {
             PresetCommands::List {
                 scope,
                 name,
@@ -142,7 +129,32 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 ExitCode::SUCCESS
             }
         },
+        None => {
+            // Shorthand: claudio my-preset
+            execute_run_command(&cli.run_args, &color_config)?
+        }
     };
 
     Ok(exit_code)
+}
+
+fn execute_run_command(
+    args: &claudio::cli::RunArgs,
+    color_config: &ColorConfig,
+) -> Result<ExitCode> {
+    // Check for ignore_user_presets conflict with --scope user
+    if args.scope.scope == Scope::User && settings_loader::should_ignore_user_presets()? {
+        anyhow::bail!(
+            "Cannot use --scope user: project settings have 'ignore_user_presets' enabled.\n\n\
+             Remove the --scope flag or update your project settings."
+        );
+    }
+
+    claudio::commands::run::run(
+        args.preset.as_deref(),
+        args.scope.scope,
+        args.require_preset,
+        &args.claude_args,
+        color_config,
+    )
 }

@@ -19,6 +19,15 @@ fn get_binary_path() -> PathBuf {
 
 /// Run the claudio binary with the given arguments.
 fn run_claudio(args: &[&str], env_vars: &[(&str, &str)]) -> std::process::Output {
+    run_claudio_with_cwd(args, env_vars, None)
+}
+
+/// Run the claudio binary with the given arguments and working directory.
+fn run_claudio_with_cwd(
+    args: &[&str],
+    env_vars: &[(&str, &str)],
+    cwd: Option<&std::path::Path>,
+) -> std::process::Output {
     let binary = get_binary_path();
 
     let mut cmd = Command::new(&binary);
@@ -26,6 +35,10 @@ fn run_claudio(args: &[&str], env_vars: &[(&str, &str)]) -> std::process::Output
 
     for (key, value) in env_vars {
         cmd.env(key, value);
+    }
+
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
     }
 
     cmd.output().expect("Failed to execute claudio binary")
@@ -368,5 +381,317 @@ fn test_cli_no_color_flag() {
     assert!(
         !stdout.contains("\x1b["),
         "Should not contain ANSI codes with --no-color"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Run Command Tests - Shorthand Syntax
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+#[serial]
+fn test_cli_run_shorthand_syntax_nonexistent_preset() {
+    let env = TestEnvironment::new();
+
+    let output = run_claudio(
+        &["nonexistent-preset", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("not found") || stderr.contains("nonexistent-preset"),
+        "Error message should indicate preset was not found"
+    );
+}
+
+#[test]
+#[serial]
+fn test_cli_run_shorthand_with_scope_flag() {
+    let env = TestEnvironment::new();
+
+    let preset_json = r#"{"name": "test-preset"}"#;
+    env.create_preset("user", "test-preset", preset_json);
+
+    let output = run_claudio(
+        &["test-preset", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    // Will fail with "Failed to execute 'claude'" but should find the preset first
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("using preset test-preset"),
+        "Should indicate it's using the preset"
+    );
+}
+
+#[test]
+#[serial]
+fn test_cli_run_shorthand_with_require_preset_flag() {
+    let env = TestEnvironment::new();
+
+    let output = run_claudio(
+        &["--require-preset", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("require_preset") || stderr.contains("No preset"),
+        "Should error about missing preset when require_preset is enabled"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Run Command Tests - Explicit vs Shorthand Equivalence
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+#[serial]
+fn test_cli_run_explicit_vs_shorthand_equivalence() {
+    let env = TestEnvironment::new();
+
+    let preset_json = r#"{"name": "equivalence-test"}"#;
+    env.create_preset("user", "equivalence-test", preset_json);
+
+    let output_explicit = run_claudio(
+        &["run", "equivalence-test", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    let output_shorthand = run_claudio(
+        &["equivalence-test", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    let stderr_explicit = String::from_utf8_lossy(&output_explicit.stderr);
+    let stderr_shorthand = String::from_utf8_lossy(&output_shorthand.stderr);
+
+    // Both should indicate they're using the same preset
+    assert!(
+        stderr_explicit.contains("using preset equivalence-test"),
+        "Explicit run should use the preset"
+    );
+    assert!(
+        stderr_shorthand.contains("using preset equivalence-test"),
+        "Shorthand should use the preset"
+    );
+
+    // Both should have the same exit status (both will fail to execute claude)
+    assert_eq!(
+        output_explicit.status.code(),
+        output_shorthand.status.code(),
+        "Both syntaxes should produce the same exit code"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Run Command Tests - Reserved Name Precedence
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+#[serial]
+fn test_cli_reserved_names_invoke_subcommands() {
+    let output_init = run_claudio(&["init", "--help"], &[]);
+    assert!(output_init.status.success());
+    let stdout_init = String::from_utf8_lossy(&output_init.stdout);
+    assert!(
+        stdout_init.contains("Initialize"),
+        "init should show init subcommand help"
+    );
+
+    let output_preset = run_claudio(&["preset", "--help"], &[]);
+    assert!(output_preset.status.success());
+    let stdout_preset = String::from_utf8_lossy(&output_preset.stdout);
+    assert!(
+        stdout_preset.contains("Manage presets"),
+        "preset should show preset subcommand help"
+    );
+
+    let output_run = run_claudio(&["run", "--help"], &[]);
+    assert!(output_run.status.success());
+    let stdout_run = String::from_utf8_lossy(&output_run.stdout);
+    assert!(
+        stdout_run.contains("Run Claude Code"),
+        "run should show run subcommand help"
+    );
+}
+
+#[test]
+#[serial]
+fn test_cli_reserved_name_preset_requires_explicit_run() {
+    let env = TestEnvironment::new();
+
+    // Create a preset named "init"
+    let preset_json = r#"{"name": "init", "description": "A preset with reserved name"}"#;
+    env.create_preset("user", "init", preset_json);
+
+    // Using shorthand syntax should invoke the init subcommand, not the preset
+    let output_shorthand = run_claudio(
+        &["init", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    // Should succeed (creates directories)
+    assert!(
+        output_shorthand.status.success(),
+        "Shorthand 'init' should invoke init subcommand"
+    );
+
+    // Using explicit run should use the preset
+    let output_explicit = run_claudio(
+        &["run", "init", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    let stderr_explicit = String::from_utf8_lossy(&output_explicit.stderr);
+    assert!(
+        stderr_explicit.contains("using preset init"),
+        "Explicit 'run init' should use the init preset"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Run Command Tests - Global Flags with Shorthand
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+#[serial]
+fn test_cli_run_shorthand_with_color_flag() {
+    let env = TestEnvironment::new();
+
+    let preset_json = r#"{"name": "color-flag-test"}"#;
+    env.create_preset("user", "color-flag-test", preset_json);
+
+    let output = run_claudio(
+        &["--color", "green", "color-flag-test", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    // Will fail to execute claude, but should process the preset
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("using preset color-flag-test"),
+        "Should process preset with --color flag"
+    );
+}
+
+#[test]
+#[serial]
+fn test_cli_run_shorthand_with_no_color_flag() {
+    let env = TestEnvironment::new();
+
+    let preset_json = r#"{"name": "no-color-test"}"#;
+    env.create_preset("user", "no-color-test", preset_json);
+
+    let output = run_claudio(
+        &["--no-color", "no-color-test", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Should process preset
+    assert!(
+        stderr.contains("using preset no-color-test"),
+        "Should process preset with --no-color flag"
+    );
+    // Stderr should not contain ANSI codes
+    assert!(
+        !stderr.contains("\x1b["),
+        "Should not contain ANSI codes with --no-color"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Run Command Tests - Default Preset Behavior
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+#[serial]
+fn test_cli_run_shorthand_without_preset_name_uses_default() {
+    let env = TestEnvironment::new();
+
+    // Create a preset named "default"
+    let preset_json = r#"{"name": "default", "description": "Default preset"}"#;
+    env.create_preset("user", "default", preset_json);
+
+    let output = run_claudio(
+        &["--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("using preset default") || stderr.contains("using preset \"default\""),
+        "Should use default preset when no preset name is provided"
+    );
+}
+
+#[test]
+#[serial]
+fn test_cli_run_explicit_without_preset_name_uses_default() {
+    let env = TestEnvironment::new();
+
+    // Create a preset named "default"
+    let preset_json = r#"{"name": "default", "description": "Default preset"}"#;
+    env.create_preset("user", "default", preset_json);
+
+    let output = run_claudio(
+        &["run", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("using preset default") || stderr.contains("using preset \"default\""),
+        "Explicit run should also use default preset when no name is provided"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Run Command Tests - Edge Cases
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+#[serial]
+fn test_cli_preset_env_with_scope_precedence() {
+    let env = TestEnvironment::new();
+
+    // Create preset in user scope
+    let user_preset = r#"{"name": "shadow-test", "env": {"SCOPE": "user"}}"#;
+    env.create_preset("user", "shadow-test", user_preset);
+
+    // Create preset in project scope with different env var
+    let project_preset = r#"{"name": "shadow-test", "env": {"SCOPE": "project"}}"#;
+    env.create_preset("project", "shadow-test", project_preset);
+
+    // Test that project scope works when running from project directory
+    let project_output = run_claudio_with_cwd(
+        &["preset", "env", "shadow-test", "--scope", "project"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+        Some(&env.project_path()),
+    );
+
+    let project_stdout = String::from_utf8_lossy(&project_output.stdout);
+    assert!(
+        project_stdout.contains("SCOPE") && project_stdout.contains("project"),
+        "Should use project-scoped preset when scope=project"
+    );
+
+    // Test that user scope can be explicitly selected
+    let user_output = run_claudio(
+        &["preset", "env", "shadow-test", "--scope", "user"],
+        &[("CLAUDIO_HOME_DIR", env.home_path().to_str().unwrap())],
+    );
+
+    let user_stdout = String::from_utf8_lossy(&user_output.stdout);
+    assert!(
+        user_stdout.contains("SCOPE") && user_stdout.contains("user"),
+        "Should use user-scoped preset when scope=user"
     );
 }
