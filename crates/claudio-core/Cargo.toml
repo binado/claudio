@@ -1,0 +1,19 @@
+[package]
+name = "claudio-core"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "claudio_core"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+directories.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+serial_test.workspace = true
+tempfile.workspace = true

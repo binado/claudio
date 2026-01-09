@@ -1,6 +1,4 @@
-pub mod cli;
-pub mod color;
-pub mod commands;
 pub mod preset;
+pub mod scope;
 pub mod settings;
 pub mod util;

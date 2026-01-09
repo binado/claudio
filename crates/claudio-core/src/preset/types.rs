@@ -36,7 +36,11 @@ pub enum EnvValueSource {
     File { path: String },
 
     /// Execute a command and use its stdout
-    /// Requires user confirmation by default (can be overridden by setting)
+    /// Requires confirmation by default.
+    ///
+    /// `claudio-core` does not perform terminal I/O. Callers must provide a
+    /// confirmation handler (via `ResolverConfig` / `ConfirmCommand`) when
+    /// confirmation is required; otherwise resolution will return an error.
     #[serde(rename = "command")]
     Command {
         command: String,

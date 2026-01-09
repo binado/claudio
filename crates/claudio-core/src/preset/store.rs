@@ -3,9 +3,9 @@
 //! `PresetStore` is the single point of entry for all preset lookups.
 //! It respects scope, and handles both inline and file-based presets.
 
-use crate::cli::Scope;
 use crate::preset::loader;
 use crate::preset::types::{Preset, PresetSource};
+use crate::scope::Scope;
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 

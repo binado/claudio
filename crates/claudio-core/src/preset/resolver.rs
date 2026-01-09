@@ -1,11 +1,8 @@
-use crate::cli::Scope;
 use crate::preset::loader;
 use crate::preset::types::{EnvValue, EnvValueSource, Preset, PresetSource, ResolvedPreset};
-use crate::settings::loader as settings_loader;
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
-use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::LazyLock;
@@ -13,17 +10,44 @@ use std::sync::LazyLock;
 static VAR_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\$\{([A-Z_][A-Z0-9_]*)\}").expect("Invalid regex pattern"));
 
+/// CLI-provided interface for confirming command execution.
+///
+/// `claudio-core` does not perform terminal I/O. If a preset contains a
+/// command-backed env value and confirmation is required, the caller must
+/// provide a `ConfirmCommand` implementation via [`ResolverConfig`].
+pub trait ConfirmCommand {
+    fn confirm_command(&self, request: ConfirmCommandRequest<'_>) -> Result<bool>;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ConfirmCommandRequest<'a> {
+    pub command: &'a str,
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct ResolverConfig<'a> {
+    /// If true, command-backed env values do not require confirmation unless
+    /// the preset explicitly sets `confirm: true`.
+    pub skip_command_confirmation: bool,
+
+    /// Confirmation handler.
+    ///
+    /// If confirmation is required and this is `None`, resolution fails with an error.
+    pub confirm_command: Option<&'a dyn ConfirmCommand>,
+}
+
 /// Resolve environment variables for a preset
 /// This is the new signature that requires PresetSource for file path resolution
 pub fn resolve_variables_with_source(
     preset: &Preset,
     source: &PresetSource,
+    cfg: &ResolverConfig<'_>,
 ) -> Result<HashMap<String, String>> {
     let mut resolved = HashMap::new();
 
     if let Some(env_vars) = &preset.env {
         for (key, value) in env_vars {
-            let resolved_value = resolve_env_value(value, source)?;
+            let resolved_value = resolve_env_value(key, value, source, cfg)?;
             resolved.insert(key.clone(), resolved_value);
         }
     }
@@ -32,7 +56,12 @@ pub fn resolve_variables_with_source(
 }
 
 /// Resolve a single environment value
-fn resolve_env_value(env_value: &EnvValue, source: &PresetSource) -> Result<String> {
+fn resolve_env_value(
+    env_key: &str,
+    env_value: &EnvValue,
+    source: &PresetSource,
+    cfg: &ResolverConfig<'_>,
+) -> Result<String> {
     match env_value {
         EnvValue::Direct(s) => resolve_direct_value(s),
         EnvValue::Structured {
@@ -51,7 +80,9 @@ fn resolve_env_value(env_value: &EnvValue, source: &PresetSource) -> Result<Stri
                     .with_context(|| format!("Failed to read file: {}", resolved_path.display()))?;
                 Ok(content.trim_end().to_string())
             }
-            EnvValueSource::Command { command, confirm } => execute_command(command, *confirm),
+            EnvValueSource::Command { command, confirm } => {
+                execute_command(env_key, command, *confirm, cfg)
+            }
         },
     }
 }
@@ -113,12 +144,34 @@ fn resolve_file_path(path: &str, source: &PresetSource) -> Result<PathBuf> {
 }
 
 /// Execute a command and return its stdout
-fn execute_command(command: &str, confirm: Option<bool>) -> Result<String> {
+///
+/// If confirmation is required and [`ResolverConfig::confirm_command`] is `None`,
+/// this function returns an error rather than prompting.
+fn execute_command(
+    env_key: &str,
+    command: &str,
+    confirm: Option<bool>,
+    cfg: &ResolverConfig<'_>,
+) -> Result<String> {
     // Determine if we should confirm based on settings and command-specific flag
-    let should_confirm = should_confirm_command(confirm)?;
+    let should_confirm = should_confirm_command(confirm, cfg);
 
     if should_confirm {
-        prompt_user_confirmation(command)?;
+        let Some(confirmer) = cfg.confirm_command else {
+            anyhow::bail!(
+                "Command confirmation required for env key '{}' but no confirmer was provided.
+\
+\
+This is a safety feature: claudio-core does not prompt for input.
+Provide a ConfirmCommand implementation (CLI) or set 'skip_command_confirmation' to true in settings.",
+                env_key
+            );
+        };
+
+        let allowed = confirmer.confirm_command(ConfirmCommandRequest { command })?;
+        if !allowed {
+            anyhow::bail!("Command execution denied");
+        }
     }
 
     // Choose shell per platform to support Windows and Unix-like systems
@@ -148,40 +201,15 @@ fn execute_command(command: &str, confirm: Option<bool>) -> Result<String> {
 }
 
 /// Determine if command execution should prompt for confirmation
-fn should_confirm_command(confirm: Option<bool>) -> Result<bool> {
-    // If confirm is explicitly set on the command, use that
+fn should_confirm_command(confirm: Option<bool>, cfg: &ResolverConfig<'_>) -> bool {
+    // If confirm is explicitly set on the command, use that.
     if let Some(confirm_value) = confirm {
-        return Ok(confirm_value);
+        return confirm_value;
     }
 
-    // Otherwise check the global setting
-    // Try to load settings from auto scope
-    let skip_confirmation = if let Ok(Some(settings)) = settings_loader::load_settings(Scope::Auto)
-    {
-        settings.skip_command_confirmation.unwrap_or(false)
-    } else {
-        false
-    };
-
-    // Default to requiring confirmation (secure by default)
-    Ok(!skip_confirmation)
-}
-
-/// Prompt user for confirmation before executing a command
-fn prompt_user_confirmation(command: &str) -> Result<()> {
-    println!("\nPreset wants to execute command:");
-    println!("  {}", command);
-    print!("Allow? [y/N]: ");
-    io::stdout().flush()?;
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-
-    if !input.trim().eq_ignore_ascii_case("y") {
-        anyhow::bail!("Command execution denied by user");
-    }
-
-    Ok(())
+    // Otherwise use the global policy.
+    // Default is secure-by-default: confirmation required.
+    !cfg.skip_command_confirmation
 }
 
 pub fn resolve_settings_variables(settings: &serde_json::Value) -> Result<serde_json::Value> {
@@ -269,13 +297,10 @@ fn merge_json_settings(
 ///
 /// This function looks up the preset's source path via `loader::find_preset`,
 /// which doesn't respect scope settings.
-pub fn resolve_inheritance(preset: &Preset) -> Result<ResolvedPreset> {
-    // For backward compatibility, look up the source path the old way
-    let source_path = loader::find_preset(&preset.name)
-        .with_context(|| format!("Failed to find preset source path: {}", preset.name))?;
-    let source = PresetSource::File(source_path);
-
-    resolve_inheritance_recursive(preset, source, None, &mut HashSet::new(), &mut Vec::new())
+pub fn resolve_inheritance(_preset: &Preset) -> Result<ResolvedPreset> {
+    anyhow::bail!(
+        "Unscoped preset resolution is not supported. Use resolve_inheritance_with_store and a ResolverConfig."
+    )
 }
 
 /// Resolve preset inheritance with scope awareness.
@@ -293,11 +318,13 @@ pub fn resolve_inheritance_with_store(
     preset: &Preset,
     source: PresetSource,
     store: &crate::preset::store::PresetStore,
+    cfg: &ResolverConfig<'_>,
 ) -> Result<ResolvedPreset> {
     resolve_inheritance_recursive(
         preset,
         source,
         Some(store),
+        cfg,
         &mut HashSet::new(),
         &mut Vec::new(),
     )
@@ -307,6 +334,7 @@ fn resolve_inheritance_recursive(
     preset: &Preset,
     source: PresetSource,
     store: Option<&crate::preset::store::PresetStore>,
+    cfg: &ResolverConfig<'_>,
     visited_set: &mut HashSet<String>,
     visited_vec: &mut Vec<String>,
 ) -> Result<ResolvedPreset> {
@@ -325,7 +353,7 @@ fn resolve_inheritance_recursive(
     visited_set.insert(preset.name.clone());
     visited_vec.push(preset.name.clone());
 
-    let mut env_vars = resolve_variables_with_source(preset, &source)?;
+    let mut env_vars = resolve_variables_with_source(preset, &source, cfg)?;
     let args;
     let settings;
 
@@ -350,6 +378,7 @@ fn resolve_inheritance_recursive(
             &base_preset,
             base_source,
             store,
+            cfg,
             visited_set,
             visited_vec,
         )?;
@@ -428,7 +457,8 @@ mod tests {
             settings: None,
         };
         let source = PresetSource::Inline; // Use Inline since we don't have a real file
-        let result = resolve_variables_with_source(&preset, &source).unwrap();
+        let cfg = ResolverConfig::default();
+        let result = resolve_variables_with_source(&preset, &source, &cfg).unwrap();
         assert!(result.is_empty());
     }
 
@@ -442,7 +472,8 @@ mod tests {
         let preset = preset_with_env(env);
         let source = PresetSource::Inline;
 
-        let result = resolve_variables_with_source(&preset, &source).unwrap();
+        let cfg = ResolverConfig::default();
+        let result = resolve_variables_with_source(&preset, &source, &cfg).unwrap();
         assert_eq!(result.get("API_URL").unwrap(), "https://api.example.com");
     }
 
@@ -462,7 +493,8 @@ mod tests {
         let preset = preset_with_env(env);
         let source = PresetSource::Inline;
 
-        let result = resolve_variables_with_source(&preset, &source).unwrap();
+        let cfg = ResolverConfig::default();
+        let result = resolve_variables_with_source(&preset, &source, &cfg).unwrap();
         assert_eq!(result.get("API_KEY").unwrap(), "secret123");
 
         // Clean up
@@ -487,7 +519,8 @@ mod tests {
         let preset = preset_with_env(env);
         let source = PresetSource::Inline;
 
-        let result = resolve_variables_with_source(&preset, &source).unwrap();
+        let cfg = ResolverConfig::default();
+        let result = resolve_variables_with_source(&preset, &source, &cfg).unwrap();
         assert_eq!(
             result.get("API_URL").unwrap(),
             "https://example.com:8080/api"
@@ -509,7 +542,8 @@ mod tests {
         let preset = preset_with_env(env);
         let source = PresetSource::Inline;
 
-        let result = resolve_variables_with_source(&preset, &source);
+        let cfg = ResolverConfig::default();
+        let result = resolve_variables_with_source(&preset, &source, &cfg);
         assert!(result.is_err());
         assert!(
             result
@@ -538,7 +572,8 @@ mod tests {
 
         let preset = preset_with_env(env);
         let source = PresetSource::Inline;
-        let result = resolve_variables_with_source(&preset, &source).unwrap();
+        let cfg = ResolverConfig::default();
+        let result = resolve_variables_with_source(&preset, &source, &cfg).unwrap();
         assert_eq!(result.get("API_KEY").unwrap(), "structured_value");
 
         unsafe {
@@ -568,7 +603,8 @@ mod tests {
         let preset = preset_with_env(env);
 
         let source = PresetSource::File(preset_path);
-        let result = resolve_variables_with_source(&preset, &source).unwrap();
+        let cfg = ResolverConfig::default();
+        let result = resolve_variables_with_source(&preset, &source, &cfg).unwrap();
         assert_eq!(result.get("TOKEN").unwrap(), "file_secret");
     }
 
@@ -594,7 +630,8 @@ mod tests {
         let preset = preset_with_env(env);
         let source = PresetSource::Inline;
 
-        let result = resolve_variables_with_source(&preset, &source).unwrap();
+        let cfg = ResolverConfig::default();
+        let result = resolve_variables_with_source(&preset, &source, &cfg).unwrap();
         assert_eq!(result.get("FROM_CMD").unwrap(), "cmd_value");
     }
 
@@ -621,7 +658,8 @@ mod tests {
         let preset = preset_with_env(env);
         let source = PresetSource::Inline;
 
-        let err = resolve_variables_with_source(&preset, &source).unwrap_err();
+        let cfg = ResolverConfig::default();
+        let err = resolve_variables_with_source(&preset, &source, &cfg).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("stderr:"));
         assert!(msg.contains("cmd_err"));

@@ -16,7 +16,7 @@ use std::path::PathBuf;
 /// # Examples
 ///
 /// ```no_run
-/// use claudio::util::get_claudio_home;
+/// use claudio_core::util::get_claudio_home;
 /// use std::path::PathBuf;
 ///
 /// // With CLAUDIO_HOME_DIR set

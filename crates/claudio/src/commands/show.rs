@@ -1,12 +1,15 @@
-use crate::cli::Scope;
-use crate::preset::resolver;
-use crate::preset::store::PresetStore;
-use crate::preset::types::PresetSource;
+use crate::commands::{build_resolver_config, effective_read_scope};
 use anyhow::{Context, Result};
+use claudio_core::preset::resolver;
+use claudio_core::preset::store::PresetStore;
+use claudio_core::preset::types::PresetSource;
+use claudio_core::scope::Scope;
 
 pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) -> Result<()> {
+    let effective_scope = effective_read_scope(scope);
+
     // Create a PresetStore for scope-aware lookups
-    let store = PresetStore::new(scope)?;
+    let store = PresetStore::new(effective_scope)?;
 
     // Find the preset using PresetStore (validates name, respects scope)
     let located = store
@@ -26,9 +29,15 @@ pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) ->
     };
 
     if resolved {
-        let resolved_preset =
-            resolver::resolve_inheritance_with_store(&located.preset, located.source, &store)
-                .with_context(|| format!("Failed to resolve preset: {}", preset_name))?;
+        let resolver_cfg = build_resolver_config(effective_scope);
+
+        let resolved_preset = resolver::resolve_inheritance_with_store(
+            &located.preset,
+            located.source,
+            &store,
+            &resolver_cfg,
+        )
+        .with_context(|| format!("Failed to resolve preset: {}", preset_name))?;
 
         println!("Configuration: {} (resolved)", preset_name);
         println!("Location: {}\n", location_str);

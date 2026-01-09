@@ -1,7 +1,7 @@
-use crate::cli::Scope;
-use crate::preset::loader;
-use crate::preset::store::PresetStore;
 use anyhow::{Context, Result};
+use claudio_core::preset::loader;
+use claudio_core::preset::store::PresetStore;
+use claudio_core::scope::Scope;
 
 use super::editor::open_in_editor;
 

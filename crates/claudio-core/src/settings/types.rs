@@ -1,6 +1,6 @@
-use crate::cli::Scope;
 use crate::preset::loader;
 use crate::preset::types::Preset;
+use crate::scope::Scope;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 

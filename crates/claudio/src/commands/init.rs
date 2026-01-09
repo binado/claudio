@@ -1,8 +1,8 @@
-use crate::cli::Scope;
-use crate::preset::loader;
-use crate::settings::loader as settings_loader;
-use crate::settings::types::Settings;
 use anyhow::{Context, Result};
+use claudio_core::preset::loader;
+use claudio_core::scope::Scope;
+use claudio_core::settings::loader as settings_loader;
+use claudio_core::settings::types::Settings;
 
 pub fn init(scope: Scope) -> Result<()> {
     // For init, we support initializing either the project directory or the

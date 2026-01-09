@@ -1,12 +1,14 @@
-use crate::cli::Scope;
 use crate::color::ColorConfig;
-use crate::preset::loader;
-use crate::preset::types::Preset;
-use crate::settings::loader as settings_loader;
 use anyhow::Result;
+use claudio_core::preset::loader;
+use claudio_core::preset::types::Preset;
+use claudio_core::scope::Scope;
+use claudio_core::settings::loader as settings_loader;
 use comfy_table::{Attribute, Cell, CellAlignment, ContentArrangement, Table};
 use std::borrow::Cow;
 use std::path::PathBuf;
+
+use crate::commands::effective_read_scope;
 
 fn validate_fields(fields: &[String]) -> Result<Vec<String>> {
     const VALID_FIELDS: &[&str] = &[
@@ -108,7 +110,8 @@ pub fn list(
     prompt_max_length: usize,
     color_config: &ColorConfig,
 ) -> Result<()> {
-    let preset_dirs = loader::get_preset_dirs_scoped(scope)?;
+    let effective_scope = effective_read_scope(scope);
+    let preset_dirs = loader::get_preset_dirs_scoped(effective_scope)?;
 
     // Validate fields once before processing any directories
     let validated_fields = if let Some(custom_fields) = fields {
@@ -224,7 +227,7 @@ pub fn list(
     // Inline presets (from settings)
     let mut inline_project: Vec<Preset> = Vec::new();
     let mut inline_user: Vec<Preset> = Vec::new();
-    for (origin, preset_obj) in settings_loader::load_inline_presets_scoped(scope)? {
+    for (origin, preset_obj) in settings_loader::load_inline_presets_scoped(effective_scope)? {
         if let Some(filter_name) = preset
             && preset_obj.name != filter_name
         {
@@ -240,7 +243,7 @@ pub fn list(
         }
     }
 
-    let inline_sections: Vec<(&str, Vec<Preset>)> = match scope {
+    let inline_sections: Vec<(&str, Vec<Preset>)> = match effective_scope {
         Scope::Project => vec![("Inline", inline_project)],
         Scope::User => vec![("Inline", inline_user)],
         Scope::Auto => vec![

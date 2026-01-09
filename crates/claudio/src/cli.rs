@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
+use claudio_core::scope::Scope as CoreScope;
+
 #[derive(Debug, Clone, Copy, PartialEq, ValueEnum)]
 pub enum Scope {
     /// Use the default resolution behavior (project shadows user for reads).
@@ -8,6 +10,16 @@ pub enum Scope {
     Project,
     /// Only use user presets from `~/.claudio/presets`.
     User,
+}
+
+impl From<Scope> for CoreScope {
+    fn from(value: Scope) -> Self {
+        match value {
+            Scope::Auto => CoreScope::Auto,
+            Scope::Project => CoreScope::Project,
+            Scope::User => CoreScope::User,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Parser)]

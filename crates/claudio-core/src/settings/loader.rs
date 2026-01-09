@@ -1,5 +1,5 @@
-use crate::cli::Scope;
 use crate::preset;
+use crate::scope::Scope;
 use crate::settings::types::Settings;
 use crate::util::get_claudio_home;
 use anyhow::{Context, Result};

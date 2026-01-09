@@ -1,5 +1,5 @@
-use crate::cli::Scope;
 use crate::preset::types::Preset;
+use crate::scope::Scope;
 use crate::util::get_claudio_home;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
@@ -250,7 +250,7 @@ pub(crate) fn preset_path_for_name_legacy(dir: &std::path::Path, name: &str) -> 
     dir.join(format!("{}.json", name))
 }
 
-pub(crate) fn candidate_preset_paths_for_name(dir: &std::path::Path, name: &str) -> Vec<PathBuf> {
+pub fn candidate_preset_paths_for_name(dir: &std::path::Path, name: &str) -> Vec<PathBuf> {
     let mut out = Vec::new();
 
     let encoded = preset_path_for_name_encoded(dir, name);

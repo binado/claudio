@@ -2,9 +2,13 @@ use anyhow::Result;
 use clap::Parser;
 use std::process::ExitCode;
 
-use claudio::cli::{Cli, Commands, PresetCommands, Scope};
-use claudio::color::{ColorConfig, HighlightColor};
-use claudio::settings::loader as settings_loader;
+mod cli;
+mod color;
+mod commands;
+
+use crate::cli::{Cli, Commands, PresetCommands, Scope};
+use crate::color::{ColorConfig, HighlightColor};
+use claudio_core::settings::loader as settings_loader;
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -27,14 +31,14 @@ fn main() -> ExitCode {
     };
 
     // Initialize color config with settings as defaults, CLI flags override
-    let settings_color = match settings_loader::resolve_color(settings_scope) {
+    let settings_color = match settings_loader::resolve_color(settings_scope.into()) {
         Ok(color) => color,
         Err(e) => {
             eprintln!("Warning: failed to load color setting: {:#}", e);
             None
         }
     };
-    let settings_no_color = match settings_loader::resolve_no_color(settings_scope) {
+    let settings_no_color = match settings_loader::resolve_no_color(settings_scope.into()) {
         Ok(no_color) => no_color.unwrap_or(false),
         Err(e) => {
             eprintln!("Warning: failed to load no_color setting: {:#}", e);
@@ -81,7 +85,7 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
             execute_run_command(args, &color_config)?
         }
         Some(Commands::Init { scope }) => {
-            claudio::commands::init::init(scope.scope)?;
+            crate::commands::init::init(scope.scope.into())?;
             ExitCode::SUCCESS
         }
         Some(Commands::Preset { command }) => match command {
@@ -92,8 +96,8 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 fields,
                 prompt_max_length,
             } => {
-                claudio::commands::list::list(
-                    scope.scope,
+                crate::commands::list::list(
+                    scope.scope.into(),
                     name.as_deref(),
                     *verbose,
                     fields.as_deref(),
@@ -108,15 +112,15 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 resolved,
                 json,
             } => {
-                claudio::commands::show::show(preset, scope.scope, *resolved, *json)?;
+                crate::commands::show::show(preset, scope.scope.into(), *resolved, *json)?;
                 ExitCode::SUCCESS
             }
             PresetCommands::Edit { preset, scope } => {
-                claudio::commands::edit::edit(preset, scope.scope)?;
+                crate::commands::edit::edit(preset, scope.scope.into())?;
                 ExitCode::SUCCESS
             }
             PresetCommands::Add { preset, scope } => {
-                claudio::commands::add::add(preset, scope.scope)?;
+                crate::commands::add::add(preset, scope.scope.into())?;
                 ExitCode::SUCCESS
             }
             PresetCommands::Env {
@@ -125,7 +129,7 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 export,
                 resolved,
             } => {
-                claudio::commands::env::env(preset, scope.scope, *export, *resolved)?;
+                crate::commands::env::env(preset, scope.scope.into(), *export, *resolved)?;
                 ExitCode::SUCCESS
             }
         },
@@ -138,21 +142,20 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
     Ok(exit_code)
 }
 
-fn execute_run_command(
-    args: &claudio::cli::RunArgs,
-    color_config: &ColorConfig,
-) -> Result<ExitCode> {
+fn execute_run_command(args: &crate::cli::RunArgs, color_config: &ColorConfig) -> Result<ExitCode> {
     // Check for ignore_user_presets conflict with --scope user
-    if args.scope.scope == Scope::User && settings_loader::should_ignore_user_presets()? {
+    if args.scope.scope == Scope::User
+        && settings_loader::should_ignore_user_presets().unwrap_or(false)
+    {
         anyhow::bail!(
             "Cannot use --scope user: project settings have 'ignore_user_presets' enabled.\n\n\
              Remove the --scope flag or update your project settings."
         );
     }
 
-    claudio::commands::run::run(
+    crate::commands::run::run(
         args.preset.as_deref(),
-        args.scope.scope,
+        args.scope.scope.into(),
         args.require_preset,
         &args.claude_args,
         color_config,

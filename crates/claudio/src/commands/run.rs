@@ -1,9 +1,10 @@
-use crate::cli::Scope;
 use crate::color::ColorConfig;
-use crate::preset::resolver;
-use crate::preset::store::PresetStore;
-use crate::settings::loader as settings_loader;
+use crate::commands::{build_resolver_config, effective_read_scope};
 use anyhow::{Context, Result};
+use claudio_core::preset::resolver;
+use claudio_core::preset::store::PresetStore;
+use claudio_core::scope::Scope;
+use claudio_core::settings::loader as settings_loader;
 use std::io::Write;
 use std::process::{Command, ExitCode};
 
@@ -14,17 +15,11 @@ pub fn run(
     claude_args: &[String],
     color_config: &ColorConfig,
 ) -> Result<ExitCode> {
-    // Determine effective require_preset: CLI flag overrides settings
-    let require_preset =
-        require_preset_cli || settings_loader::resolve_require_preset(scope)?.unwrap_or(false);
+    let effective_scope = effective_read_scope(scope);
 
-    // Apply ignore_user_presets if set in project settings
-    let effective_scope = if scope == Scope::Auto && settings_loader::should_ignore_user_presets()?
-    {
-        Scope::Project
-    } else {
-        scope
-    };
+    // Determine effective require_preset: CLI flag overrides settings
+    let require_preset = require_preset_cli
+        || settings_loader::resolve_require_preset(effective_scope)?.unwrap_or(false);
 
     // Create a PresetStore for scope-aware lookups
     let store = PresetStore::new(effective_scope)?;
@@ -67,10 +62,15 @@ pub fn run(
         .find_required(&preset_to_use)
         .with_context(|| format!("Failed to find preset: {}", preset_to_use))?;
 
-    // Resolve using scope-aware resolver
-    let resolved =
-        resolver::resolve_inheritance_with_store(&located.preset, located.source, &store)
-            .with_context(|| format!("Failed to resolve preset: {}", preset_to_use))?;
+    let resolver_cfg = build_resolver_config(effective_scope);
+
+    let resolved = resolver::resolve_inheritance_with_store(
+        &located.preset,
+        located.source,
+        &store,
+        &resolver_cfg,
+    )
+    .with_context(|| format!("Failed to resolve preset: {}", preset_to_use))?;
 
     let mut cmd = Command::new("claude");
 
