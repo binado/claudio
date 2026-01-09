@@ -30,6 +30,12 @@ Claudio uses **presets** - complete configuration recipes for running Claude Cod
 - `local-dev` - Local development endpoint for testing
 - `code-review` - Custom settings optimized for code reviews
 
+**Quick Tip:** You can run presets directly without the `run` keyword:
+```bash
+claudio my-preset        # Shorthand
+claudio run my-preset    # Explicit (equivalent)
+```
+
 ### Quick Start
 
 Initialize claudio in your project or user directory:
@@ -74,11 +80,12 @@ Run Claude Code with your preset:
 # Set your API key
 export MINIMAX_API_KEY="your-api-key-here"
 
-# Run with the preset
+# Run with the preset (both forms are equivalent)
+claudio minimax-fast
 claudio run minimax-fast
 
 # Pass additional arguments to claude
-claudio run minimax-fast -- --verbose
+claudio minimax-fast -- --verbose
 ```
 
 ### Managing Presets
@@ -242,14 +249,14 @@ The settings file (`settings.json`) controls default behavior:
 
 ```bash
 # Run with default preset (uses setting from settings.json)
-claudio run
+claudio
 
 # Require a preset to be available
-claudio run --require-preset
+claudio --require-preset
 
 # Use specific scope
-claudio run minimax-fast --scope user
-claudio run project-config --scope project
+claudio minimax-fast --scope user
+claudio project-config --scope project
 ```
 
 #### Advanced: Preset Features
@@ -310,6 +317,15 @@ claudio preset list
 
 ## Development
 
+### Project Structure
+
+Claudio is organized as a Cargo workspace with two crates:
+
+- **`claudio-core`** (`crates/claudio-core/`) - Core domain logic for presets, settings, and resolution
+- **`claudio`** (`crates/claudio/`) - CLI binary and command implementations
+
+This separation keeps the core logic independent from CLI-specific dependencies, making it testable and reusable.
+
 ### Setup
 
 After cloning the repository, install git hooks using [prek](https://github.com/j178/prek):
@@ -329,7 +345,7 @@ This sets up git hooks that automatically run:
 ### Building and Testing
 
 ```bash
-# Build
+# Build the workspace
 cargo build
 
 # Run tests
