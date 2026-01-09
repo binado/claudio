@@ -163,10 +163,10 @@ impl Preset {
                             }
                         }
                         EnvValueSource::Env { var } => {
-                            if var.trim().is_empty() {
+                            if !is_valid_env_key(var) {
                                 result.add_error(format!(
-                                    "env key '{}': variable name cannot be empty",
-                                    key
+                                    "env key '{}': variable name '{}' is invalid",
+                                    key, var
                                 ));
                             }
                         }
