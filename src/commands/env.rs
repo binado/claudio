@@ -1,7 +1,26 @@
 use crate::cli::Scope;
 use crate::preset::resolver;
 use crate::preset::store::PresetStore;
+use crate::preset::types::{EnvValue, EnvValueSource};
 use anyhow::{Context, Result};
+
+fn format_env_value(value: &EnvValue) -> String {
+    match value {
+        EnvValue::Direct(s) => s.clone(),
+        EnvValue::Structured { source } => match source {
+            EnvValueSource::Value { value } => value.clone(),
+            EnvValueSource::Env { var } => format!("${{from: env, var: {}}}", var),
+            EnvValueSource::File { path } => format!("${{from: file, path: {}}}", path),
+            EnvValueSource::Command { command, confirm } => {
+                if let Some(c) = confirm {
+                    format!("${{from: command, command: {}, confirm: {}}}", command, c)
+                } else {
+                    format!("${{from: command, command: {}}}", command)
+                }
+            }
+        },
+    }
+}
 
 fn shell_escape_double_quoted(value: &str) -> String {
     // Escapes for use inside double quotes in common POSIX shells.
@@ -53,7 +72,9 @@ pub fn env(preset_name: &str, scope: Scope, export: bool, resolved: bool) -> Res
         println!("Environment variables for preset '{}':\n", preset_name);
         if let Some(env_vars) = &located.preset.env {
             for (key, value) in env_vars {
-                println!("{}={}", key, value);
+                // Display the unresolved value (can be Direct string or Structured source)
+                let display_value = format_env_value(value);
+                println!("{}={}", key, display_value);
             }
         }
     }

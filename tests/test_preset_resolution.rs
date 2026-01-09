@@ -46,7 +46,9 @@ fn test_resolve_preset_with_env_substitution() {
     let path = env.create_preset("user", "env-test", preset_json);
 
     let preset = loader::load_preset(&path).expect("Failed to load preset");
-    let resolved = resolver::resolve_variables(&preset).expect("Failed to resolve variables");
+    let source = claudio::preset::types::PresetSource::File(path);
+    let resolved = resolver::resolve_variables_with_source(&preset, &source)
+        .expect("Failed to resolve variables");
 
     assert_eq!(resolved.get("API_KEY").unwrap(), "my-secret-key");
     assert_eq!(resolved.get("STATIC_VAR").unwrap(), "static-value");
@@ -70,8 +72,9 @@ fn test_resolve_preset_missing_env_var() {
 
     let path = env.create_preset("user", "missing-env", preset_json);
     let preset = loader::load_preset(&path).expect("Failed to load preset");
+    let source = claudio::preset::types::PresetSource::File(path);
 
-    let result = resolver::resolve_variables(&preset);
+    let result = resolver::resolve_variables_with_source(&preset, &source);
     assert!(result.is_err());
     let err_msg = result.unwrap_err().to_string();
     assert!(err_msg.contains("DEFINITELY_NONEXISTENT_VAR_12345"));
@@ -96,7 +99,9 @@ fn test_resolve_multiple_vars_in_single_value() {
 
     let path = env.create_preset("user", "multi-var", preset_json);
     let preset = loader::load_preset(&path).expect("Failed to load preset");
-    let resolved = resolver::resolve_variables(&preset).expect("Failed to resolve");
+    let source = claudio::preset::types::PresetSource::File(path);
+    let resolved =
+        resolver::resolve_variables_with_source(&preset, &source).expect("Failed to resolve");
 
     assert_eq!(
         resolved.get("API_URL").unwrap(),
@@ -261,8 +266,9 @@ fn test_missing_required_env_var_provides_helpful_message() {
 
     let path = env.create_preset("user", "needs-var", preset_json);
     let preset = loader::load_preset(&path).expect("Failed to load preset");
+    let source = claudio::preset::types::PresetSource::File(path);
 
-    let result = resolver::resolve_variables(&preset);
+    let result = resolver::resolve_variables_with_source(&preset, &source);
     assert!(result.is_err());
 
     let err = result.unwrap_err().to_string();
