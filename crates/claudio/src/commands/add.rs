@@ -25,6 +25,9 @@ pub fn add(preset_name: &str, extends: Option<String>, scope: Scope) -> Result<(
 
     // 2. Validate base preset exists (use Auto scope to search both user and project)
     if let Some(base_preset) = extends.as_ref() {
+        if base_preset == preset_name {
+            anyhow::bail!("Cannot extend preset '{}' from itself.", preset_name);
+        }
         let validation_store = PresetStore::new(Scope::Auto)?;
         if validation_store.find(base_preset)?.is_none() {
             anyhow::bail!(
