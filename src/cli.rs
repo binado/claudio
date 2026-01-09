@@ -17,6 +17,23 @@ pub struct ScopeArgs {
     pub scope: Scope,
 }
 
+#[derive(Debug, Clone, Parser)]
+pub struct RunArgs {
+    /// Preset name to use (defaults to "default" preset if available)
+    pub preset: Option<String>,
+
+    #[command(flatten)]
+    pub scope: ScopeArgs,
+
+    /// Require a preset (error if none available instead of running bare claude)
+    #[arg(long)]
+    pub require_preset: bool,
+
+    /// Additional arguments to pass to claude
+    #[arg(last = true, allow_hyphen_values = true)]
+    pub claude_args: Vec<String>,
+}
+
 #[derive(Parser)]
 #[command(name = "claudio")]
 #[command(author, version, about, long_about = None)]
@@ -30,27 +47,17 @@ pub struct Cli {
     pub no_color: bool,
 
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
+
+    /// Flattened run args for shorthand syntax (claudio my-preset)
+    #[command(flatten)]
+    pub run_args: RunArgs,
 }
 
 #[derive(Subcommand)]
 pub enum Commands {
     /// Run Claude Code with a specific preset
-    Run {
-        /// Preset name to use (defaults to "default" preset if available)
-        preset: Option<String>,
-
-        #[command(flatten)]
-        scope: ScopeArgs,
-
-        /// Require a preset (error if none available instead of running bare claude)
-        #[arg(long)]
-        require_preset: bool,
-
-        /// Additional arguments to pass to claude
-        #[arg(last = true, allow_hyphen_values = true)]
-        claude_args: Vec<String>,
-    },
+    Run(RunArgs),
     /// Initialize a project-local preset directory at `<project-root>/.claudio/presets`
     Init {
         #[command(flatten)]
