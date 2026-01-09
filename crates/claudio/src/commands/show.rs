@@ -43,8 +43,12 @@ pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) ->
         println!("Location: {}\n", location_str);
 
         println!("Resolved Environment Variables:");
-        for (key, value) in &resolved_preset.env {
-            println!("  {}={}", key, value);
+        if resolved_preset.env.is_empty() {
+            println!("  (none)");
+        } else {
+            for (key, value) in &resolved_preset.env {
+                println!("  {}={}", key, value);
+            }
         }
 
         if let Some(settings) = &resolved_preset.settings {
