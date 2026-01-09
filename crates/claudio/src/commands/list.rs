@@ -59,6 +59,31 @@ fn field_to_header(field: &str) -> &str {
     }
 }
 
+fn get_display_fields<'a>(
+    validated_fields: &'a Option<Vec<String>>,
+    verbose: bool,
+) -> Cow<'a, [String]> {
+    if let Some(validated) = validated_fields {
+        Cow::Borrowed(validated)
+    } else if verbose {
+        Cow::Owned(vec![
+            "name".to_string(),
+            "description".to_string(),
+            "filepath".to_string(),
+            "env".to_string(),
+            "args".to_string(),
+            "extends".to_string(),
+            "prompt".to_string(),
+        ])
+    } else {
+        Cow::Owned(vec![
+            "name".to_string(),
+            "description".to_string(),
+            "filepath".to_string(),
+        ])
+    }
+}
+
 fn build_row(
     preset: &Preset,
     filepath_display: &str,
@@ -168,26 +193,7 @@ pub fn list(
             .set_content_arrangement(ContentArrangement::Disabled);
 
         // Determine which fields to display
-        let display_fields: Cow<[String]> = if let Some(ref validated) = validated_fields {
-            // Use pre-validated custom fields (borrowed, no allocation)
-            Cow::Borrowed(validated)
-        } else if verbose {
-            Cow::Owned(vec![
-                "name".to_string(),
-                "description".to_string(),
-                "filepath".to_string(),
-                "env".to_string(),
-                "args".to_string(),
-                "extends".to_string(),
-                "prompt".to_string(),
-            ])
-        } else {
-            Cow::Owned(vec![
-                "name".to_string(),
-                "description".to_string(),
-                "filepath".to_string(),
-            ])
-        };
+        let display_fields = get_display_fields(&validated_fields, verbose);
 
         // Set headers based on display_fields with explicit left alignment
         // Use comfy-table's native styling to ensure proper width calculation
@@ -265,25 +271,7 @@ pub fn list(
             .set_content_arrangement(ContentArrangement::Disabled);
 
         // Determine which fields to display
-        let display_fields: Cow<[String]> = if let Some(ref validated) = validated_fields {
-            Cow::Borrowed(validated)
-        } else if verbose {
-            Cow::Owned(vec![
-                "name".to_string(),
-                "description".to_string(),
-                "filepath".to_string(),
-                "env".to_string(),
-                "args".to_string(),
-                "extends".to_string(),
-                "prompt".to_string(),
-            ])
-        } else {
-            Cow::Owned(vec![
-                "name".to_string(),
-                "description".to_string(),
-                "filepath".to_string(),
-            ])
-        };
+        let display_fields = get_display_fields(&validated_fields, verbose);
 
         let headers: Vec<Cell> = display_fields
             .iter()
