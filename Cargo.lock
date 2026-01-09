@@ -125,8 +125,20 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "claudio-core",
  "colored",
  "comfy-table",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tempfile",
+]
+
+[[package]]
+name = "claudio-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
  "directories",
  "regex",
  "serde",

@@ -1,0 +1,22 @@
+[package]
+name = "claudio"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "claudio"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+colored.workspace = true
+comfy-table.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+
+claudio-core = { path = "../claudio-core" }
+
+[dev-dependencies]
+serial_test.workspace = true
