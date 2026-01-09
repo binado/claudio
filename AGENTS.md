@@ -64,12 +64,13 @@ Creates:
 - Preset directory (`presets/`)
 - Settings file (`settings.json`)
 
-### `claudio run <preset>`
+### `claudio [run] <preset>`
 
-Run Claude Code with a preset.
+Run Claude Code with a preset. The `run` keyword is optional.
 
 ```bash
-claudio run <preset> [--scope SCOPE] [-- CLAUDE_ARGS...]
+claudio <preset> [--scope SCOPE] [-- CLAUDE_ARGS...]
+claudio run <preset> [--scope SCOPE] [-- CLAUDE_ARGS...]  # Explicit form
 ```
 
 1. Finds preset file in specified scope
@@ -223,29 +224,37 @@ Error if referenced variable doesn't exist.
 
 ### Module Structure
 
+Claudio is organized as a Cargo workspace with two crates:
+
+**claudio-core** (`crates/claudio-core/src/`):
 ```
-src/
-├── cli.rs                 # CLI argument parsing
-├── main.rs               # Entry point
 ├── lib.rs                # Library exports
-├── color.rs              # Terminal color utilities
-├── util.rs               # Helper functions
-├── commands/
-│   ├── init.rs          # Initialize directories
-│   ├── run.rs           # Run Claude Code
-│   ├── add.rs           # Create preset
-│   ├── edit.rs          # Edit preset
-│   ├── list.rs          # List presets
-│   ├── show.rs          # Show preset details
-│   ├── env.rs           # Print environment
-│   └── editor.rs        # Editor utilities
+├── scope.rs              # Scope enum (Auto, Project, User)
 ├── preset/
 │   ├── types.rs         # Preset data structures
 │   ├── loader.rs        # File I/O and discovery
-│   └── resolver.rs      # Inheritance and variable substitution
+│   ├── resolver.rs      # Inheritance and variable substitution
+│   └── store.rs         # Preset store abstraction
 └── settings/
     ├── types.rs         # Settings data structure
     └── loader.rs        # Settings file I/O
+```
+
+**claudio** (`crates/claudio/src/`):
+```
+├── cli.rs                # CLI argument parsing
+├── main.rs              # Entry point
+├── color.rs             # Terminal color utilities
+├── util.rs              # Helper functions
+└── commands/
+    ├── init.rs          # Initialize directories
+    ├── run.rs           # Run Claude Code
+    ├── add.rs           # Create preset
+    ├── edit.rs          # Edit preset
+    ├── list.rs          # List presets
+    ├── show.rs          # Show preset details
+    ├── env.rs           # Print environment
+    └── editor.rs        # Editor utilities
 ```
 
 ### Key Dependencies
