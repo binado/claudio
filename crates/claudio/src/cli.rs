@@ -135,6 +135,10 @@ pub enum PresetCommands {
         /// Name for the new preset
         preset: String,
 
+        /// Base preset to extend from
+        #[arg(long = "extends", alias = "extend")]
+        extends: Option<String>,
+
         #[command(flatten)]
         scope: ScopeArgs,
     },
