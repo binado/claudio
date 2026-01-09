@@ -114,6 +114,7 @@ pub fn run(
     }
 
     execute_claude_command(cmd)
+    // _temp_settings_file is dropped here, cleaning up the temporary file
 }
 
 fn run_claude_directly(claude_args: &[String]) -> Result<ExitCode> {
@@ -129,8 +130,6 @@ fn execute_claude_command(mut cmd: Command) -> Result<ExitCode> {
          See: https://github.com/anthropics/claude-code"
     })?;
     let code = status.code().unwrap_or(1);
-
-    // temp_settings_file is dropped here, cleaning up the temporary file
 
     Ok(ExitCode::from(code.clamp(0, 255) as u8))
 }
