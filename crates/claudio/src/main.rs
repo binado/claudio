@@ -119,8 +119,12 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 crate::commands::edit::edit(preset, scope.scope.into())?;
                 ExitCode::SUCCESS
             }
-            PresetCommands::Add { preset, scope } => {
-                crate::commands::add::add(preset, scope.scope.into())?;
+            PresetCommands::Add {
+                preset,
+                extends,
+                scope,
+            } => {
+                crate::commands::add::add(preset, extends.clone(), scope.scope.into())?;
                 ExitCode::SUCCESS
             }
             PresetCommands::Env {

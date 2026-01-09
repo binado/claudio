@@ -5,7 +5,7 @@ use claudio_core::scope::Scope;
 
 use super::editor::open_in_editor;
 
-pub fn add(preset_name: &str, scope: Scope) -> Result<()> {
+pub fn add(preset_name: &str, extends: Option<String>, scope: Scope) -> Result<()> {
     // Create a PresetStore for scope-aware lookups
     let store = PresetStore::new(scope)?;
 
@@ -23,8 +23,20 @@ pub fn add(preset_name: &str, scope: Scope) -> Result<()> {
         }
     }
 
-    // 2. Create the new preset file
-    let new_preset = loader::default_preset(preset_name);
+    // 2. Validate base preset exists (use Auto scope to search both user and project)
+    if let Some(base_preset) = extends.as_ref() {
+        let validation_store = PresetStore::new(Scope::Auto)?;
+        if validation_store.find(base_preset)?.is_none() {
+            anyhow::bail!(
+                "Cannot extend from preset '{}': preset not found.",
+                base_preset
+            );
+        }
+    }
+
+    // 3. Create the new preset file
+    let mut new_preset = loader::default_preset(preset_name);
+    new_preset.extends = extends;
     let target_dir = store.write_dir()?;
 
     // Ensure directory exists before writing.
@@ -41,6 +53,6 @@ pub fn add(preset_name: &str, scope: Scope) -> Result<()> {
     loader::write_preset_atomic(&new_path, &new_preset)
         .with_context(|| format!("Failed to write preset file: {}", new_path.display()))?;
 
-    // 3. Open in editor
+    // 4. Open in editor
     open_in_editor(&new_path)
 }

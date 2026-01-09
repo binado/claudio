@@ -193,3 +193,237 @@ fn test_invalid_command_returns_error() {
         stderr
     );
 }
+
+#[test]
+#[serial]
+fn test_preset_add_with_extends_flag() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+
+    // Create a base preset first
+    env.write_project_preset(
+        "base",
+        r#"{
+  "name": "base",
+  "description": "Base preset",
+  "env": {
+    "BASE_VAR": "base_value"
+  }
+}"#,
+    );
+
+    // Run preset add command with --extends flag
+    let output = run_claudio(
+        &env.project_dir,
+        &[
+            "preset",
+            "add",
+            "derived",
+            "--extends",
+            "base",
+            "--scope",
+            "project",
+        ],
+        &[
+            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            ("EDITOR", "/usr/bin/true"), // Avoid opening an editor
+        ],
+    );
+
+    assert!(
+        output.status.success(),
+        "Preset add with --extends failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify preset file was created with extends field
+    let preset_path = env
+        .project_dir
+        .join(".claudio")
+        .join("presets")
+        .join("derived.json");
+    assert!(preset_path.exists());
+
+    // Verify preset file contains extends field
+    let content = std::fs::read_to_string(&preset_path).unwrap();
+    assert!(content.contains("\"name\": \"derived\""));
+    assert!(content.contains("\"extends\": \"base\""));
+}
+
+#[test]
+#[serial]
+fn test_preset_add_with_extend_alias() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+
+    // Create a base preset first
+    env.write_project_preset(
+        "base",
+        r#"{
+  "name": "base",
+  "description": "Base preset"
+}"#,
+    );
+
+    // Run preset add command with --extend alias
+    let output = run_claudio(
+        &env.project_dir,
+        &[
+            "preset", "add", "derived", "--extend", "base", "--scope", "project",
+        ],
+        &[
+            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            ("EDITOR", "/usr/bin/true"),
+        ],
+    );
+
+    assert!(
+        output.status.success(),
+        "Preset add with --extend alias failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify preset file contains extends field
+    let preset_path = env
+        .project_dir
+        .join(".claudio")
+        .join("presets")
+        .join("derived.json");
+    let content = std::fs::read_to_string(&preset_path).unwrap();
+    assert!(content.contains("\"extends\": \"base\""));
+}
+
+#[test]
+#[serial]
+fn test_preset_add_without_extends_has_null_extends() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+
+    // Run preset add command without --extends flag
+    let output = run_claudio(
+        &env.project_dir,
+        &["preset", "add", "standalone", "--scope", "project"],
+        &[
+            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            ("EDITOR", "/usr/bin/true"),
+        ],
+    );
+
+    assert!(
+        output.status.success(),
+        "Preset add without --extends failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify preset file has null extends field
+    let preset_path = env
+        .project_dir
+        .join(".claudio")
+        .join("presets")
+        .join("standalone.json");
+    let content = std::fs::read_to_string(&preset_path).unwrap();
+    assert!(
+        content.contains("\"extends\": null"),
+        "Expected extends to be null, got: {}",
+        content
+    );
+}
+
+#[test]
+#[serial]
+fn test_preset_add_with_nonexistent_base_fails() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+
+    // Run preset add command with non-existent base preset
+    let output = run_claudio(
+        &env.project_dir,
+        &[
+            "preset",
+            "add",
+            "derived",
+            "--extends",
+            "nonexistent",
+            "--scope",
+            "project",
+        ],
+        &[
+            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            ("EDITOR", "/usr/bin/true"),
+        ],
+    );
+
+    assert!(
+        !output.status.success(),
+        "Preset add with non-existent base should fail"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("nonexistent") && stderr.contains("not found"),
+        "Expected error about non-existent preset, got: {}",
+        stderr
+    );
+
+    // Verify preset file was NOT created
+    let preset_path = env
+        .project_dir
+        .join(".claudio")
+        .join("presets")
+        .join("derived.json");
+    assert!(!preset_path.exists());
+}
+
+#[test]
+#[serial]
+fn test_preset_add_extends_finds_base_in_user_scope() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+    env.create_user_config();
+
+    // Create base preset in user scope
+    env.write_user_preset(
+        "user-base",
+        r#"{
+  "name": "user-base",
+  "description": "User-level base preset"
+}"#,
+    );
+
+    // Run preset add command extending user preset from project scope
+    let output = run_claudio(
+        &env.project_dir,
+        &[
+            "preset",
+            "add",
+            "project-derived",
+            "--extends",
+            "user-base",
+            "--scope",
+            "project",
+        ],
+        &[
+            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            ("EDITOR", "/usr/bin/true"),
+        ],
+    );
+
+    assert!(
+        output.status.success(),
+        "Should be able to extend preset from user scope\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify preset file contains extends field
+    let preset_path = env
+        .project_dir
+        .join(".claudio")
+        .join("presets")
+        .join("project-derived.json");
+    let content = std::fs::read_to_string(&preset_path).unwrap();
+    assert!(content.contains("\"extends\": \"user-base\""));
+}
