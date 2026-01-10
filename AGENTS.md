@@ -69,15 +69,21 @@ Creates:
 Run Claude Code with a preset. The `run` keyword is optional.
 
 ```bash
-claudio <preset> [--scope SCOPE] [-- CLAUDE_ARGS...]
-claudio run <preset> [--scope SCOPE] [-- CLAUDE_ARGS...]  # Explicit form
+claudio <preset> [--scope SCOPE] [--dry-run] [-- CLAUDE_ARGS...]
+claudio run <preset> [--scope SCOPE] [--dry-run] [-- CLAUDE_ARGS...]  # Explicit form
 ```
 
+Options:
+- `--dry-run` - Print the exact command that would be executed without running it
+- `--scope SCOPE` - Specify scope (auto, project, or user)
+
+Behavior:
 1. Finds preset file in specified scope
 2. Resolves inheritance chain
 3. Substitutes environment variables
 4. Writes settings to temporary file (if present)
-5. Executes `claude` with combined env vars and args
+5. Prints command if `--dry-run` is set
+6. Executes `claude` with combined env vars and args (unless dry-run)
 
 ### `claudio preset list`
 
@@ -145,6 +151,7 @@ Location: `[scope]/.claudio/settings.json`
   "no_color": false,
   "require_preset": false,
   "ignore_user_presets": false,
+  "dry_run_show_env": true,
   "presets": []
 }
 ```
@@ -158,6 +165,7 @@ Location: `[scope]/.claudio/settings.json`
 | `no_color` | boolean | Disable colored output |
 | `require_preset` | boolean | Error if no preset available |
 | `ignore_user_presets` | boolean | Only use project presets (project scope only) |
+| `dry_run_show_env` | boolean | Include environment variables in `--dry-run` output (default: true) |
 | `presets` | array | Inline preset definitions |
 
 ## Scope Resolution
@@ -368,6 +376,27 @@ Settings validation checks:
   },
   "args": ["--verbose"]
 }
+```
+
+## Dry-Run Usage Examples
+
+The `--dry-run` flag prints the exact command that would be executed without running it. This is useful for debugging, sharing commands, and verifying environment variable substitution.
+
+```bash
+# Show full command with environment variables
+$ claudio minimax --dry-run
+ANTHROPIC_BASE_URL=https://api.minimax.chat/v1 ANTHROPIC_AUTH_TOKEN=sk-abc123 ANTHROPIC_DEFAULT_SONNET_MODEL=minimax-sonnet claude --no-mcp
+
+# With additional arguments
+$ claudio minimax --dry-run -- --verbose "implement login"
+ANTHROPIC_BASE_URL=https://api.minimax.chat/v1 ANTHROPIC_AUTH_TOKEN=sk-abc123 ANTHROPIC_DEFAULT_SONNET_MODEL=minimax-sonnet claude --no-mcp --verbose 'implement login'
+
+# Hide environment variables (set dry_run_show_env: false in settings.json)
+$ claudio minimax --dry-run
+claude --no-mcp
+
+# Copy the command to clipboard (macOS)
+$ claudio minimax --dry-run | pbcopy
 ```
 
 ## Testing Strategy

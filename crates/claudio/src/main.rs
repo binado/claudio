@@ -161,6 +161,7 @@ fn execute_run_command(args: &crate::cli::RunArgs, color_config: &ColorConfig) -
         args.preset.as_deref(),
         args.scope.scope.into(),
         args.require_preset,
+        args.dry_run,
         &args.claude_args,
         color_config,
     )

@@ -256,6 +256,24 @@ pub fn should_ignore_user_presets() -> Result<bool> {
     Ok(false)
 }
 
+/// Resolve the dry_run_show_env setting considering scope precedence
+///
+/// For `Scope::Auto`: project settings take precedence over user settings
+pub fn resolve_dry_run_show_env(scope: Scope) -> Result<Option<bool>> {
+    match scope {
+        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.dry_run_show_env)),
+        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.dry_run_show_env)),
+        Scope::Auto => {
+            if let Some(project_settings) = load_settings(Scope::Project)?
+                && let Some(show_env) = project_settings.dry_run_show_env
+            {
+                return Ok(Some(show_env));
+            }
+            Ok(load_settings(Scope::User)?.and_then(|s| s.dry_run_show_env))
+        }
+    }
+}
+
 fn get_user_settings_path() -> Result<PathBuf> {
     let home = get_claudio_home()?;
     Ok(home.join(".claudio").join("settings.json"))
