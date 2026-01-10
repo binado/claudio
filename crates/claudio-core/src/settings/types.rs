@@ -34,6 +34,11 @@ pub struct Settings {
     /// Default is false (prompts enabled for security)
     #[serde(default)]
     pub skip_command_confirmation: Option<bool>,
+
+    /// Whether to include environment variables in --dry-run output
+    /// Default is true (show env vars)
+    #[serde(default)]
+    pub dry_run_show_env: Option<bool>,
 }
 
 impl Settings {

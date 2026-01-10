@@ -86,6 +86,10 @@ claudio run minimax-fast
 
 # Pass additional arguments to claude
 claudio minimax-fast -- --verbose
+
+# See what command would be executed (dry-run)
+claudio minimax-fast --dry-run
+# Output: ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic ANTHROPIC_AUTH_TOKEN=sk-xxx ... claude --no-mcp
 ```
 
 ### Managing Presets
@@ -233,6 +237,7 @@ The settings file (`settings.json`) controls default behavior:
   "no_color": false,
   "require_preset": false,
   "ignore_user_presets": false,
+  "dry_run_show_env": true,
   "presets": []
 }
 ```
@@ -243,6 +248,7 @@ The settings file (`settings.json`) controls default behavior:
 - `no_color` - Disable colored output
 - `require_preset` - Error if no preset is available instead of running bare claude
 - `ignore_user_presets` - Only use project presets (project settings only)
+- `dry_run_show_env` - Include environment variables in `--dry-run` output (default: true)
 - `presets` - Inline preset definitions (alternative to separate files)
 
 #### Scope Examples

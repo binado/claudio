@@ -12,6 +12,7 @@ pub fn run(
     preset_name: Option<&str>,
     scope: Scope,
     require_preset_cli: bool,
+    dry_run: bool,
     claude_args: &[String],
     color_config: &ColorConfig,
 ) -> Result<ExitCode> {
@@ -27,20 +28,26 @@ pub fn run(
     // Determine which preset to use
     let preset_to_use = match preset_name {
         Some(name) => {
-            eprintln!("using preset {}", color_config.highlight(name));
+            if !dry_run {
+                eprintln!("using preset {}", color_config.highlight(name));
+            }
             name.to_string()
         }
         None => {
             // Try to get default preset from settings
             if let Some(default_name) = settings_loader::resolve_default_preset(effective_scope)? {
-                eprintln!(
-                    "using preset {} (from settings)",
-                    color_config.highlight(&default_name)
-                );
+                if !dry_run {
+                    eprintln!(
+                        "using preset {} (from settings)",
+                        color_config.highlight(&default_name)
+                    );
+                }
                 default_name
             } else if store.find("default")?.is_some() {
                 // Fall back to "default" preset file
-                eprintln!("using preset {}", color_config.highlight("default"));
+                if !dry_run {
+                    eprintln!("using preset {}", color_config.highlight("default"));
+                }
                 "default".to_string()
             } else {
                 // No default preset found
@@ -51,8 +58,10 @@ pub fn run(
                          or create a 'default' preset file."
                     );
                 }
-                eprintln!("no preset found, falling back to: claude");
-                return run_claude_directly(claude_args);
+                if !dry_run {
+                    eprintln!("no preset found, falling back to: claude");
+                }
+                return run_claude_directly(claude_args, dry_run);
             }
         }
     };
@@ -72,15 +81,11 @@ pub fn run(
     )
     .with_context(|| format!("Failed to resolve preset: {}", preset_to_use))?;
 
-    let mut cmd = Command::new("claude");
+    // Build args list to be used for both command and dry-run output
+    let mut args: Vec<String> = Vec::new();
 
-    for (key, value) in &resolved.env {
-        cmd.env(key, value);
-    }
-
-    for arg in &resolved.args {
-        cmd.arg(arg);
-    }
+    // Add preset-defined args
+    args.extend(resolved.args.clone());
 
     // Add settings via temporary file if present (more secure than command-line args)
     let _temp_settings_file = if let Some(settings) = &resolved.settings {
@@ -97,30 +102,92 @@ pub fn run(
             .context("Failed to write settings to temporary file")?;
 
         let temp_path = temp_file.path().to_path_buf();
-        cmd.arg("--settings");
-        cmd.arg(&temp_path);
+        args.push("--settings".to_string());
+        args.push(temp_path.to_string_lossy().to_string());
 
         Some(temp_file)
     } else {
         None
     };
 
-    for arg in claude_args {
-        cmd.arg(arg);
+    // Add additional claude args
+    args.extend(claude_args.iter().cloned());
+
+    // Add prompt if present
+    if let Some(prompt) = &resolved.prompt {
+        args.push(prompt.clone());
     }
 
-    if let Some(prompt) = &resolved.prompt {
-        cmd.arg(prompt);
+    if dry_run {
+        let show_env = settings_loader::resolve_dry_run_show_env(effective_scope)?.unwrap_or(true);
+        print_dry_run_command(&resolved.env, &args, show_env)?;
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let mut cmd = Command::new("claude");
+
+    for (key, value) in &resolved.env {
+        cmd.env(key, value);
+    }
+
+    for arg in &args {
+        cmd.arg(arg);
     }
 
     execute_claude_command(cmd)
     // _temp_settings_file is dropped here, cleaning up the temporary file
 }
 
-fn run_claude_directly(claude_args: &[String]) -> Result<ExitCode> {
+fn run_claude_directly(claude_args: &[String], dry_run: bool) -> Result<ExitCode> {
+    if dry_run {
+        print_dry_run_command(&std::collections::HashMap::new(), claude_args, true)?;
+        return Ok(ExitCode::SUCCESS);
+    }
+
     let mut cmd = Command::new("claude");
     cmd.args(claude_args);
     execute_claude_command(cmd)
+}
+
+fn shell_escape(s: &str) -> String {
+    // Check if string needs quoting
+    if s.chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '/' || c == '.')
+    {
+        s.to_string()
+    } else {
+        // Use single quotes and escape any single quotes in the string
+        format!("'{}'", s.replace('\'', r"'\''"))
+    }
+}
+
+fn print_dry_run_command(
+    env_vars: &std::collections::HashMap<String, String>,
+    args: &[String],
+    show_env: bool,
+) -> Result<()> {
+    let mut output = String::new();
+
+    // Add environment variables if enabled
+    if show_env {
+        for (key, value) in env_vars {
+            let escaped_value = shell_escape(value);
+            output.push_str(&format!("{}={} ", key, escaped_value));
+        }
+    }
+
+    // Add command name
+    output.push_str("claude");
+
+    // Add arguments
+    for arg in args {
+        output.push(' ');
+        output.push_str(&shell_escape(arg));
+    }
+
+    println!("{}", output);
+    std::io::stdout().flush()?;
+    Ok(())
 }
 
 fn execute_claude_command(mut cmd: Command) -> Result<ExitCode> {

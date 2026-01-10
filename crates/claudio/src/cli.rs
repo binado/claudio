@@ -41,6 +41,10 @@ pub struct RunArgs {
     #[arg(long)]
     pub require_preset: bool,
 
+    /// Print the command that would be executed without running it
+    #[arg(long)]
+    pub dry_run: bool,
+
     /// Additional arguments to pass to claude
     #[arg(last = true, allow_hyphen_values = true)]
     pub claude_args: Vec<String>,
