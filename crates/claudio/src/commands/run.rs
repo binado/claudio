@@ -150,13 +150,12 @@ fn run_claude_directly(claude_args: &[String], dry_run: bool) -> Result<ExitCode
 }
 
 fn shell_escape(s: &str) -> String {
-    // Check if string needs quoting
-    if s.chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '/' || c == '.')
+    if !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '/' || c == '.')
     {
         s.to_string()
     } else {
-        // Use single quotes and escape any single quotes in the string
         format!("'{}'", s.replace('\'', r"'\''"))
     }
 }
