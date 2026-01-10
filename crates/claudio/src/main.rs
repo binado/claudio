@@ -24,6 +24,7 @@ fn main() -> ExitCode {
             | PresetCommands::Add { scope, .. }
             | PresetCommands::Env { scope, .. } => scope.scope,
         },
+        Some(Commands::Completion { .. }) => Scope::Auto,
         None => {
             // For shorthand syntax, use the run_args scope
             cli.run_args.scope.scope
@@ -137,6 +138,10 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 ExitCode::SUCCESS
             }
         },
+        Some(Commands::Completion { shell }) => {
+            crate::commands::completion::completion(*shell)?;
+            ExitCode::SUCCESS
+        }
         None => {
             // Shorthand: claudio my-preset
             execute_run_command(&cli.run_args, &color_config)?

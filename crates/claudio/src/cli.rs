@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use clap_complete::Shell;
 
 use claudio_core::scope::Scope as CoreScope;
 
@@ -83,6 +84,12 @@ pub enum Commands {
     Preset {
         #[command(subcommand)]
         command: PresetCommands,
+    },
+    /// Generate shell completion scripts
+    Completion {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
     },
 }
 
