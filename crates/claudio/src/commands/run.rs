@@ -182,9 +182,14 @@ fn print_dry_run_command(
     output.push_str("claude");
 
     // Add arguments
-    for arg in args {
+    if !args.is_empty() {
         output.push(' ');
-        output.push_str(&shell_escape(arg));
+        let args_str = args
+            .iter()
+            .map(|arg| shell_escape(arg))
+            .collect::<Vec<_>>()
+            .join(" ");
+        output.push_str(&args_str);
     }
 
     println!("{}", output);
