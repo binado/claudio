@@ -100,7 +100,7 @@ pub fn show(
         };
         if resolved_preset.settings.is_some() {
             println!(
-                "  {} {} --settings <temp-file>",
+                "  {}{} --settings <temp-file>",
                 claude_executable, args_suffix
             );
         } else {
