@@ -69,13 +69,14 @@ Creates:
 Run Claude Code with a preset. The `run` keyword is optional.
 
 ```bash
-claudio <preset> [--scope SCOPE] [--dry-run] [-- CLAUDE_ARGS...]
-claudio run <preset> [--scope SCOPE] [--dry-run] [-- CLAUDE_ARGS...]  # Explicit form
+claudio <preset> [--scope SCOPE] [--dry-run] [--claude-executable PATH] [-- CLAUDE_ARGS...]
+claudio run <preset> [--scope SCOPE] [--dry-run] [--claude-executable PATH] [-- CLAUDE_ARGS...]  # Explicit form
 ```
 
 Options:
 - `--dry-run` - Print the exact command that would be executed without running it
 - `--scope SCOPE` - Specify scope (auto, project, or user)
+- `--claude-executable PATH` - Override the Claude Code executable (or set `CLAUDIO_CLAUDE_EXECUTABLE` env var)
 
 Behavior:
 1. Finds preset file in specified scope
@@ -152,6 +153,7 @@ Location: `[scope]/.claudio/settings.json`
   "require_preset": false,
   "ignore_user_presets": false,
   "dry_run_show_env": true,
+  "claude_executable": "claude",
   "presets": []
 }
 ```
@@ -166,6 +168,7 @@ Location: `[scope]/.claudio/settings.json`
 | `require_preset` | boolean | Error if no preset available |
 | `ignore_user_presets` | boolean | Only use project presets (project scope only) |
 | `dry_run_show_env` | boolean | Include environment variables in `--dry-run` output (default: true) |
+| `claude_executable` | string | Claude Code executable name or path (default: "claude") |
 | `presets` | array | Inline preset definitions |
 
 ## Scope Resolution
@@ -205,6 +208,53 @@ Requirements:
 - Must be absolute path
 - Must be existing directory
 - Used instead of system home directory
+
+## Configuring the Claude Executable
+
+By default, `claudio` executes the `claude` command. However, you can configure a different executable name or path using a 4-level precedence system.
+
+### Precedence Levels (highest to lowest)
+
+1. **CLI Flag** - `--claude-executable`
+2. **Environment Variable** - `CLAUDIO_CLAUDE_EXECUTABLE`
+3. **Settings File** - `claude_executable` in `.claudio/settings.json`
+4. **Default** - `"claude"`
+
+### Usage Examples
+
+**CLI flag:**
+```bash
+claudio --claude-executable /usr/local/bin/claude my-preset
+claudio --claude-executable claude-wrapper my-preset
+```
+
+**Environment variable:**
+```bash
+export CLAUDIO_CLAUDE_EXECUTABLE=/custom/path/to/claude
+claudio my-preset
+```
+
+**Settings file:**
+```json
+{
+  "claude_executable": "/opt/claude/bin/claude",
+  "default_preset": "my-preset"
+}
+```
+
+**With --dry-run to see the resolved command:**
+```bash
+claudio --dry-run --claude-executable /path/to/claude my-preset
+# Output: /path/to/claude --verbose [other args...]
+```
+
+### Use Cases
+
+- Installing Claude Code under a different name
+- Using a wrapper script to customize Claude execution
+- CI/CD environments requiring absolute paths
+- Multiple Claude versions installed simultaneously
+- Custom installation paths from package managers
 
 ## Variable Substitution
 

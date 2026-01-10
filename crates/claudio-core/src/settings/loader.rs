@@ -274,6 +274,24 @@ pub fn resolve_dry_run_show_env(scope: Scope) -> Result<Option<bool>> {
     }
 }
 
+/// Resolve the claude_executable setting considering scope precedence
+///
+/// For `Scope::Auto`: project settings take precedence over user settings
+pub fn resolve_claude_executable(scope: Scope) -> Result<Option<String>> {
+    match scope {
+        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.claude_executable)),
+        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.claude_executable)),
+        Scope::Auto => {
+            if let Some(project_settings) = load_settings(Scope::Project)?
+                && let Some(executable) = project_settings.claude_executable
+            {
+                return Ok(Some(executable));
+            }
+            Ok(load_settings(Scope::User)?.and_then(|s| s.claude_executable))
+        }
+    }
+}
+
 fn get_user_settings_path() -> Result<PathBuf> {
     let home = get_claudio_home()?;
     Ok(home.join(".claudio").join("settings.json"))

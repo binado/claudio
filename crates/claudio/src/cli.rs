@@ -63,6 +63,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub no_color: bool,
 
+    /// Claude Code executable name or path (overrides settings and env var)
+    #[arg(long, global = true)]
+    pub claude_executable: Option<String>,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 

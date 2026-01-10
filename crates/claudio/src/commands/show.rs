@@ -4,9 +4,20 @@ use claudio_core::preset::resolver;
 use claudio_core::preset::store::PresetStore;
 use claudio_core::preset::types::PresetSource;
 use claudio_core::scope::Scope;
+use claudio_core::settings::loader as settings_loader;
 
 pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) -> Result<()> {
     let effective_scope = effective_read_scope(scope);
+
+    // Resolve claude executable with precedence: Env > Settings > Default
+    let claude_executable = std::env::var("CLAUDIO_CLAUDE_EXECUTABLE")
+        .ok()
+        .or_else(|| {
+            settings_loader::resolve_claude_executable(effective_scope)
+                .ok()
+                .flatten()
+        })
+        .unwrap_or_else(|| "claude".to_string());
 
     // Create a PresetStore for scope-aware lookups
     let store = PresetStore::new(effective_scope)?;
@@ -81,9 +92,12 @@ pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) ->
             format!(" {}", args_str)
         };
         if resolved_preset.settings.is_some() {
-            println!("  claude{} --settings <temp-file>", args_suffix);
+            println!(
+                "  {} {} --settings <temp-file>",
+                claude_executable, args_suffix
+            );
         } else {
-            println!("  claude{}", args_suffix);
+            println!("  {}{}", claude_executable, args_suffix);
         }
     } else {
         println!("Configuration: {}", preset_name);

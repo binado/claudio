@@ -14,9 +14,21 @@ pub fn run(
     require_preset_cli: bool,
     dry_run: bool,
     claude_args: &[String],
+    claude_executable_cli: Option<&str>,
     color_config: &ColorConfig,
 ) -> Result<ExitCode> {
     let effective_scope = effective_read_scope(scope);
+
+    // Resolve claude executable with precedence: CLI > Env > Settings > Default
+    let claude_executable = claude_executable_cli
+        .map(|s| s.to_string())
+        .or_else(|| std::env::var("CLAUDIO_CLAUDE_EXECUTABLE").ok())
+        .or_else(|| {
+            settings_loader::resolve_claude_executable(effective_scope)
+                .ok()
+                .flatten()
+        })
+        .unwrap_or_else(|| "claude".to_string());
 
     // Determine effective require_preset: CLI flag overrides settings
     let require_preset = require_preset_cli
@@ -59,9 +71,9 @@ pub fn run(
                     );
                 }
                 if !dry_run {
-                    eprintln!("no preset found, falling back to: claude");
+                    eprintln!("no preset found, falling back to: {}", claude_executable);
                 }
-                return run_claude_directly(claude_args, dry_run);
+                return run_claude_directly(claude_args, dry_run, &claude_executable);
             }
         }
     };
@@ -132,7 +144,7 @@ pub fn run(
 
     if dry_run {
         let show_env = settings_loader::resolve_dry_run_show_env(effective_scope)?.unwrap_or(true);
-        print_dry_run_command(&resolved.env, &args, show_env)?;
+        print_dry_run_command(&resolved.env, &args, show_env, &claude_executable)?;
 
         if let Some(path) = kept_settings_path {
             eprintln!(
@@ -143,7 +155,7 @@ pub fn run(
         return Ok(ExitCode::SUCCESS);
     }
 
-    let mut cmd = Command::new("claude");
+    let mut cmd = Command::new(&claude_executable);
 
     for (key, value) in &resolved.env {
         cmd.env(key, value);
@@ -157,13 +169,22 @@ pub fn run(
     // _temp_settings_file is dropped here, cleaning up the temporary file
 }
 
-fn run_claude_directly(claude_args: &[String], dry_run: bool) -> Result<ExitCode> {
+fn run_claude_directly(
+    claude_args: &[String],
+    dry_run: bool,
+    claude_executable: &str,
+) -> Result<ExitCode> {
     if dry_run {
-        print_dry_run_command(&std::collections::HashMap::new(), claude_args, true)?;
+        print_dry_run_command(
+            &std::collections::HashMap::new(),
+            claude_args,
+            true,
+            claude_executable,
+        )?;
         return Ok(ExitCode::SUCCESS);
     }
 
-    let mut cmd = Command::new("claude");
+    let mut cmd = Command::new(claude_executable);
     cmd.args(claude_args);
     execute_claude_command(cmd)
 }
@@ -190,8 +211,9 @@ fn print_dry_run_command(
     env_vars: &std::collections::HashMap<String, String>,
     args: &[String],
     show_env: bool,
+    claude_executable: &str,
 ) -> Result<()> {
-    let output = build_dry_run_command(env_vars, args, show_env);
+    let output = build_dry_run_command(env_vars, args, show_env, claude_executable);
     println!("{}", output);
     std::io::stdout().flush()?;
     Ok(())
@@ -201,6 +223,7 @@ fn build_dry_run_command(
     env_vars: &std::collections::HashMap<String, String>,
     args: &[String],
     show_env: bool,
+    claude_executable: &str,
 ) -> String {
     let mut output = String::new();
 
@@ -216,7 +239,7 @@ fn build_dry_run_command(
     }
 
     // Add command name
-    output.push_str("claude");
+    output.push_str(claude_executable);
 
     // Add arguments
     if !args.is_empty() {
@@ -276,7 +299,7 @@ mod tests {
     fn build_dry_run_command_no_args_no_env() {
         let env: HashMap<String, String> = HashMap::new();
         let args: Vec<String> = vec![];
-        assert_eq!(build_dry_run_command(&env, &args, true), "claude");
+        assert_eq!(build_dry_run_command(&env, &args, true, "claude"), "claude");
     }
 
     #[test]
@@ -285,7 +308,10 @@ mod tests {
         env.insert("B".to_string(), "2".to_string());
         env.insert("A".to_string(), "1".to_string());
         let args: Vec<String> = vec![];
-        assert_eq!(build_dry_run_command(&env, &args, true), "A=1 B=2 claude");
+        assert_eq!(
+            build_dry_run_command(&env, &args, true, "claude"),
+            "A=1 B=2 claude"
+        );
     }
 
     #[test]
@@ -293,7 +319,10 @@ mod tests {
         let mut env: HashMap<String, String> = HashMap::new();
         env.insert("A".to_string(), "1".to_string());
         let args: Vec<String> = vec![];
-        assert_eq!(build_dry_run_command(&env, &args, false), "claude");
+        assert_eq!(
+            build_dry_run_command(&env, &args, false, "claude"),
+            "claude"
+        );
     }
 
     #[test]
@@ -305,8 +334,29 @@ mod tests {
             "O'Reilly".to_string(),
         ];
         assert_eq!(
-            build_dry_run_command(&env, &args, false),
+            build_dry_run_command(&env, &args, false, "claude"),
             "claude --msg 'hello world' 'O'\\''Reilly'"
+        );
+    }
+
+    #[test]
+    fn build_dry_run_command_with_custom_executable() {
+        let env: HashMap<String, String> = HashMap::new();
+        let args: Vec<String> = vec!["--help".to_string()];
+        assert_eq!(
+            build_dry_run_command(&env, &args, false, "/usr/local/bin/claude"),
+            "/usr/local/bin/claude --help"
+        );
+    }
+
+    #[test]
+    fn build_dry_run_command_with_custom_executable_and_env() {
+        let mut env: HashMap<String, String> = HashMap::new();
+        env.insert("MY_VAR".to_string(), "value".to_string());
+        let args: Vec<String> = vec![];
+        assert_eq!(
+            build_dry_run_command(&env, &args, true, "/path/to/claude"),
+            "MY_VAR=value /path/to/claude"
         );
     }
 }
