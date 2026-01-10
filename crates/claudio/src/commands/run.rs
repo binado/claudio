@@ -169,7 +169,10 @@ fn print_dry_run_command(
 
     // Add environment variables if enabled
     if show_env {
-        for (key, value) in env_vars {
+        let mut keys: Vec<_> = env_vars.keys().collect();
+        keys.sort();
+        for key in keys {
+            let value = &env_vars[key];
             let escaped_value = shell_escape(value);
             output.push_str(&format!("{}={} ", key, escaped_value));
         }
