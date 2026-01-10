@@ -389,7 +389,7 @@ ANTHROPIC_BASE_URL=https://api.minimax.chat/v1 ANTHROPIC_AUTH_TOKEN=sk-abc123 AN
 
 # With additional arguments
 $ claudio minimax --dry-run -- --verbose "implement login"
-ANTHROPIC_BASE_URL=https://api.minimax.chat/v1 ANTHROPIC_AUTH_TOKEN=sk-abc123 claude --no-mcp --verbose 'implement login'
+ANTHROPIC_BASE_URL=https://api.minimax.chat/v1 ANTHROPIC_AUTH_TOKEN=sk-abc123 ANTHROPIC_DEFAULT_SONNET_MODEL=minimax-sonnet claude --no-mcp --verbose 'implement login'
 
 # Hide environment variables (set dry_run_show_env: false in settings.json)
 $ claudio minimax --dry-run
