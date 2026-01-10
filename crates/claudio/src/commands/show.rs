@@ -6,12 +6,19 @@ use claudio_core::preset::types::PresetSource;
 use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
 
-pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) -> Result<()> {
+pub fn show(
+    preset_name: &str,
+    scope: Scope,
+    resolved: bool,
+    json_only: bool,
+    claude_executable_cli: Option<&str>,
+) -> Result<()> {
     let effective_scope = effective_read_scope(scope);
 
-    // Resolve claude executable with precedence: Env > Settings > Default
-    let claude_executable = std::env::var("CLAUDIO_CLAUDE_EXECUTABLE")
-        .ok()
+    // Resolve claude executable with precedence: CLI > Env > Settings > Default
+    let claude_executable = claude_executable_cli
+        .map(|s| s.to_string())
+        .or_else(|| std::env::var("CLAUDIO_CLAUDE_EXECUTABLE").ok())
         .or_else(|| {
             settings_loader::resolve_claude_executable(effective_scope)
                 .ok()
