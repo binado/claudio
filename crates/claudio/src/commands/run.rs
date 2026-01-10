@@ -88,7 +88,11 @@ pub fn run(
     args.extend(resolved.args.clone());
 
     // Add settings via temporary file if present (more secure than command-line args)
-    let _temp_settings_file = if let Some(settings) = &resolved.settings {
+    // In dry-run mode, we keep the file so the printed command is copy/paste-able.
+    let mut kept_settings_path: Option<std::path::PathBuf> = None;
+    let mut _temp_settings_file: Option<tempfile::NamedTempFile> = None;
+
+    if let Some(settings) = &resolved.settings {
         let settings_json = serde_json::to_string_pretty(settings)
             .context("Failed to serialize settings to JSON")?;
 
@@ -101,14 +105,22 @@ pub fn run(
             .write_all(settings_json.as_bytes())
             .context("Failed to write settings to temporary file")?;
 
-        let temp_path = temp_file.path().to_path_buf();
+        let temp_path = if dry_run {
+            let (file, kept_path) = temp_file
+                .keep()
+                .context("Failed to keep temporary settings file")?;
+            drop(file);
+            kept_settings_path = Some(kept_path.clone());
+            kept_path
+        } else {
+            let path = temp_file.path().to_path_buf();
+            _temp_settings_file = Some(temp_file);
+            path
+        };
+
         args.push("--settings".to_string());
         args.push(temp_path.to_string_lossy().to_string());
-
-        Some(temp_file)
-    } else {
-        None
-    };
+    }
 
     // Add additional claude args
     args.extend(claude_args.iter().cloned());
@@ -121,6 +133,13 @@ pub fn run(
     if dry_run {
         let show_env = settings_loader::resolve_dry_run_show_env(effective_scope)?.unwrap_or(true);
         print_dry_run_command(&resolved.env, &args, show_env)?;
+
+        if let Some(path) = kept_settings_path {
+            eprintln!(
+                "# Note: --settings was written to {} (file is kept; delete it when done).",
+                path.display()
+            );
+        }
         return Ok(ExitCode::SUCCESS);
     }
 
