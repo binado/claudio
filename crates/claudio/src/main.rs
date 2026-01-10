@@ -13,6 +13,15 @@ use claudio_core::settings::loader as settings_loader;
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
+    // Handle completion command immediately, before loading settings
+    if let Some(Commands::Completion { shell }) = &cli.command {
+        if let Err(e) = crate::commands::completion::completion(*shell) {
+            eprintln!("Error: {:#}", e);
+            return ExitCode::FAILURE;
+        }
+        return ExitCode::SUCCESS;
+    }
+
     // Determine the scope for settings lookup (default to Auto for global settings)
     let settings_scope = match &cli.command {
         Some(Commands::Run(args)) => args.scope.scope,
@@ -24,6 +33,9 @@ fn main() -> ExitCode {
             | PresetCommands::Add { scope, .. }
             | PresetCommands::Env { scope, .. } => scope.scope,
         },
+        Some(Commands::Completion { .. }) => {
+            unreachable!("Completion handled before reaching here")
+        }
         None => {
             // For shorthand syntax, use the run_args scope
             cli.run_args.scope.scope
@@ -137,6 +149,9 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 ExitCode::SUCCESS
             }
         },
+        Some(Commands::Completion { .. }) => {
+            unreachable!("Completion handled before reaching here")
+        }
         None => {
             // Shorthand: claudio my-preset
             execute_run_command(&cli.run_args, &color_config)?
