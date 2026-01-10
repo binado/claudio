@@ -7,6 +7,7 @@ pub mod init;
 pub mod list;
 pub mod run;
 pub mod show;
+pub mod util;
 
 use anyhow::Result;
 use std::io::{self, Write};

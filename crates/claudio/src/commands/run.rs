@@ -19,16 +19,8 @@ pub fn run(
 ) -> Result<ExitCode> {
     let effective_scope = effective_read_scope(scope);
 
-    // Resolve claude executable with precedence: CLI > Env > Settings > Default
-    let claude_executable = claude_executable_cli
-        .map(|s| s.to_string())
-        .or_else(|| std::env::var("CLAUDIO_CLAUDE_EXECUTABLE").ok())
-        .or_else(|| {
-            settings_loader::resolve_claude_executable(effective_scope)
-                .ok()
-                .flatten()
-        })
-        .unwrap_or_else(|| "claude".to_string());
+    let claude_executable =
+        crate::commands::util::resolve_claude_executable(claude_executable_cli, effective_scope);
 
     // Determine effective require_preset: CLI flag overrides settings
     let require_preset = require_preset_cli

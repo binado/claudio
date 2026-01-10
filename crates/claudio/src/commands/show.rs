@@ -4,7 +4,6 @@ use claudio_core::preset::resolver;
 use claudio_core::preset::store::PresetStore;
 use claudio_core::preset::types::PresetSource;
 use claudio_core::scope::Scope;
-use claudio_core::settings::loader as settings_loader;
 
 pub fn show(
     preset_name: &str,
@@ -15,16 +14,8 @@ pub fn show(
 ) -> Result<()> {
     let effective_scope = effective_read_scope(scope);
 
-    // Resolve claude executable with precedence: CLI > Env > Settings > Default
-    let claude_executable = claude_executable_cli
-        .map(|s| s.to_string())
-        .or_else(|| std::env::var("CLAUDIO_CLAUDE_EXECUTABLE").ok())
-        .or_else(|| {
-            settings_loader::resolve_claude_executable(effective_scope)
-                .ok()
-                .flatten()
-        })
-        .unwrap_or_else(|| "claude".to_string());
+    let claude_executable =
+        crate::commands::util::resolve_claude_executable(claude_executable_cli, effective_scope);
 
     // Create a PresetStore for scope-aware lookups
     let store = PresetStore::new(effective_scope)?;
