@@ -151,8 +151,15 @@ fn run_claude_directly(claude_args: &[String], dry_run: bool) -> Result<ExitCode
 
 fn shell_escape(s: &str) -> String {
     if !s.is_empty()
-        && s.chars()
-            .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '/' || c == '.')
+        && s.chars().all(|c| {
+            c.is_alphanumeric()
+                || c == '_'
+                || c == '-'
+                || c == '/'
+                || c == '.'
+                || c == ':'
+                || c == '='
+        })
     {
         s.to_string()
     } else {
@@ -206,4 +213,33 @@ fn execute_claude_command(mut cmd: Command) -> Result<ExitCode> {
     let code = status.code().unwrap_or(1);
 
     Ok(ExitCode::from(code.clamp(0, 255) as u8))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::shell_escape;
+
+    #[test]
+    fn shell_escape_allows_common_url_chars() {
+        assert_eq!(shell_escape("https://example.com"), "https://example.com");
+        assert_eq!(
+            shell_escape("http://localhost:8080"),
+            "http://localhost:8080"
+        );
+    }
+
+    #[test]
+    fn shell_escape_allows_equals() {
+        assert_eq!(shell_escape("key=value"), "key=value");
+    }
+
+    #[test]
+    fn shell_escape_quotes_spaces() {
+        assert_eq!(shell_escape("hello world"), "'hello world'");
+    }
+
+    #[test]
+    fn shell_escape_escapes_single_quotes() {
+        assert_eq!(shell_escape("O'Reilly"), "'O'\\''Reilly'");
+    }
 }
