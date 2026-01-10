@@ -191,6 +191,17 @@ fn print_dry_run_command(
     args: &[String],
     show_env: bool,
 ) -> Result<()> {
+    let output = build_dry_run_command(env_vars, args, show_env);
+    println!("{}", output);
+    std::io::stdout().flush()?;
+    Ok(())
+}
+
+fn build_dry_run_command(
+    env_vars: &std::collections::HashMap<String, String>,
+    args: &[String],
+    show_env: bool,
+) -> String {
     let mut output = String::new();
 
     // Add environment variables if enabled
@@ -218,9 +229,7 @@ fn print_dry_run_command(
         output.push_str(&args_str);
     }
 
-    println!("{}", output);
-    std::io::stdout().flush()?;
-    Ok(())
+    output
 }
 
 fn execute_claude_command(mut cmd: Command) -> Result<ExitCode> {
@@ -236,7 +245,8 @@ fn execute_claude_command(mut cmd: Command) -> Result<ExitCode> {
 
 #[cfg(test)]
 mod tests {
-    use super::shell_escape;
+    use super::{build_dry_run_command, shell_escape};
+    use std::collections::HashMap;
 
     #[test]
     fn shell_escape_allows_common_url_chars() {
@@ -260,5 +270,43 @@ mod tests {
     #[test]
     fn shell_escape_escapes_single_quotes() {
         assert_eq!(shell_escape("O'Reilly"), "'O'\\''Reilly'");
+    }
+
+    #[test]
+    fn build_dry_run_command_no_args_no_env() {
+        let env: HashMap<String, String> = HashMap::new();
+        let args: Vec<String> = vec![];
+        assert_eq!(build_dry_run_command(&env, &args, true), "claude");
+    }
+
+    #[test]
+    fn build_dry_run_command_with_env_vars_sorted() {
+        let mut env: HashMap<String, String> = HashMap::new();
+        env.insert("B".to_string(), "2".to_string());
+        env.insert("A".to_string(), "1".to_string());
+        let args: Vec<String> = vec![];
+        assert_eq!(build_dry_run_command(&env, &args, true), "A=1 B=2 claude");
+    }
+
+    #[test]
+    fn build_dry_run_command_show_env_false_omits_env() {
+        let mut env: HashMap<String, String> = HashMap::new();
+        env.insert("A".to_string(), "1".to_string());
+        let args: Vec<String> = vec![];
+        assert_eq!(build_dry_run_command(&env, &args, false), "claude");
+    }
+
+    #[test]
+    fn build_dry_run_command_with_special_chars_in_args() {
+        let env: HashMap<String, String> = HashMap::new();
+        let args: Vec<String> = vec![
+            "--msg".to_string(),
+            "hello world".to_string(),
+            "O'Reilly".to_string(),
+        ];
+        assert_eq!(
+            build_dry_run_command(&env, &args, false),
+            "claude --msg 'hello world' 'O'\\''Reilly'"
+        );
     }
 }
