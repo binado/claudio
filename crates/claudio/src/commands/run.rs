@@ -129,8 +129,10 @@ pub fn run(
     // Add additional claude args
     args.extend(claude_args.iter().cloned());
 
-    // Add prompt if present
-    if let Some(prompt) = &resolved.prompt {
+    // Add prompt if present and non-empty
+    if let Some(prompt) = &resolved.prompt
+        && !prompt.trim().is_empty()
+    {
         args.push(prompt.clone());
     }
 

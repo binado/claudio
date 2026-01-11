@@ -423,7 +423,10 @@ fn resolve_inheritance_recursive(
     Ok(ResolvedPreset {
         name: preset.name.clone(),
         description: preset.description.clone(),
-        prompt: preset.prompt.clone(),
+        prompt: preset
+            .prompt
+            .as_deref()
+            .and_then(|p| (!p.trim().is_empty()).then(|| p.to_string())),
         env: env_vars,
         args,
         settings: resolved_settings,
@@ -452,6 +455,34 @@ mod tests {
             args: None,
             settings: None,
         }
+    }
+
+    #[test]
+    fn test_prompt_normalized_to_none_when_empty_or_whitespace() {
+        let preset = Preset {
+            name: "test".to_string(),
+            description: None,
+            extends: None,
+            prompt: Some("   ".to_string()),
+            env: None,
+            args: None,
+            settings: None,
+        };
+
+        let source = PresetSource::Inline;
+        let cfg = ResolverConfig::default();
+
+        let resolved = resolve_inheritance_recursive(
+            &preset,
+            source,
+            None,
+            &cfg,
+            &mut HashSet::new(),
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert!(resolved.prompt.is_none());
     }
 
     #[test]
