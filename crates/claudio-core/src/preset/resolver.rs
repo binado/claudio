@@ -463,7 +463,8 @@ mod tests {
 
     #[test]
     fn test_prompt_normalized_to_none_when_empty_or_whitespace() {
-        let preset = Preset {
+        // Test whitespace-only string
+        let preset_whitespace = Preset {
             name: "test".to_string(),
             description: None,
             extends: None,
@@ -476,8 +477,31 @@ mod tests {
         let source = PresetSource::Inline;
         let cfg = ResolverConfig::default();
 
-        let resolved = resolve_inheritance_recursive(
-            &preset,
+        let resolved_whitespace = resolve_inheritance_recursive(
+            &preset_whitespace,
+            source.clone(),
+            None,
+            &cfg,
+            &mut HashSet::new(),
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert!(resolved_whitespace.prompt.is_none());
+
+        // Test truly empty string
+        let preset_empty = Preset {
+            name: "test".to_string(),
+            description: None,
+            extends: None,
+            prompt: Some(String::new()),
+            env: None,
+            args: None,
+            settings: None,
+        };
+
+        let resolved_empty = resolve_inheritance_recursive(
+            &preset_empty,
             source,
             None,
             &cfg,
@@ -486,7 +510,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(resolved.prompt.is_none());
+        assert!(resolved_empty.prompt.is_none());
     }
 
     #[test]
