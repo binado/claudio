@@ -11,10 +11,18 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::process::{Command, ExitCode};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CheckStatus {
+    Pass,
+    Warn,
+    Fail,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct CheckResult {
     name: String,
-    status: String,
+    status: CheckStatus,
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     details: Option<serde_json::Value>,
@@ -46,14 +54,10 @@ impl DoctorReport {
     }
 
     fn add_check(&mut self, result: CheckResult) {
-        match result.status.as_str() {
-            "pass" => self.summary.pass += 1,
-            "warn" => self.summary.warn += 1,
-            "fail" => self.summary.fail += 1,
-            _ => {
-                eprintln!("Unexpected status: treating as fail");
-                self.summary.fail += 1;
-            }
+        match result.status {
+            CheckStatus::Pass => self.summary.pass += 1,
+            CheckStatus::Warn => self.summary.warn += 1,
+            CheckStatus::Fail => self.summary.fail += 1,
         }
         self.checks.push(result);
     }
@@ -136,15 +140,15 @@ fn check_claude_executable(report: &mut DoctorReport, executable: &str) {
     let status = match Command::new(executable).arg("--version").output() {
         Ok(output) => {
             if output.status.success() {
-                "pass"
+                CheckStatus::Pass
             } else {
-                "fail"
+                CheckStatus::Fail
             }
         }
-        Err(_) => "fail",
+        Err(_) => CheckStatus::Fail,
     };
 
-    let (message, details) = if status == "pass" {
+    let (message, details) = if status == CheckStatus::Pass {
         (
             "Claude Code executable found".to_string(),
             Some(json!({"executable": executable})),
@@ -163,7 +167,7 @@ fn check_claude_executable(report: &mut DoctorReport, executable: &str) {
 
     report.add_check(CheckResult {
         name: "claude_executable".to_string(),
-        status: status.to_string(),
+        status,
         message,
         details,
     });
@@ -176,7 +180,7 @@ fn check_settings(report: &mut DoctorReport, scope: Scope) {
             Ok(_) => {
                 report.add_check(CheckResult {
                     name: "settings_valid".to_string(),
-                    status: "pass".to_string(),
+                    status: CheckStatus::Pass,
                     message: "Settings file is valid".to_string(),
                     details: None,
                 });
@@ -184,7 +188,7 @@ fn check_settings(report: &mut DoctorReport, scope: Scope) {
             Err(e) => {
                 report.add_check(CheckResult {
                     name: "settings_valid".to_string(),
-                    status: "fail".to_string(),
+                    status: CheckStatus::Fail,
                     message: format!("Settings validation failed: {}", e),
                     details: None,
                 });
@@ -193,7 +197,7 @@ fn check_settings(report: &mut DoctorReport, scope: Scope) {
         Ok(None) => {
             report.add_check(CheckResult {
                 name: "settings_present".to_string(),
-                status: "warn".to_string(),
+                status: CheckStatus::Warn,
                 message: "No settings file found".to_string(),
                 details: None,
             });
@@ -201,7 +205,7 @@ fn check_settings(report: &mut DoctorReport, scope: Scope) {
         Err(e) => {
             report.add_check(CheckResult {
                 name: "settings_parse".to_string(),
-                status: "fail".to_string(),
+                status: CheckStatus::Fail,
                 message: format!("Failed to parse settings: {}", e),
                 details: None,
             });
@@ -233,7 +237,7 @@ fn check_preset_directories(report: &mut DoctorReport, scope: Scope) {
                 let Some(dir) = dirs.first() else {
                     report.add_check(CheckResult {
                         name: format!("preset_dir_{}", scope_name),
-                        status: "fail".to_string(),
+                        status: CheckStatus::Fail,
                         message: format!(
                             "Failed to get preset directory path for {} scope",
                             scope_name
@@ -246,14 +250,14 @@ fn check_preset_directories(report: &mut DoctorReport, scope: Scope) {
                 if dir.exists() && dir.is_dir() {
                     report.add_check(CheckResult {
                         name: format!("preset_dir_{}", scope_name),
-                        status: "pass".to_string(),
+                        status: CheckStatus::Pass,
                         message: format!("{} preset directory exists", scope_name),
                         details: Some(json!({"path": dir.display().to_string()})),
                     });
                 } else {
                     report.add_check(CheckResult {
                         name: format!("preset_dir_{}", scope_name),
-                        status: "warn".to_string(),
+                        status: CheckStatus::Warn,
                         message: format!(
                             "{} preset directory does not exist (optional)",
                             scope_name
@@ -265,7 +269,7 @@ fn check_preset_directories(report: &mut DoctorReport, scope: Scope) {
             Err(e) => {
                 report.add_check(CheckResult {
                     name: format!("preset_dir_{}", scope_name),
-                    status: "fail".to_string(),
+                    status: CheckStatus::Fail,
                     message: format!(
                         "Failed to get preset directories for {} scope: {}",
                         scope_name, e
@@ -284,7 +288,7 @@ fn check_preset_validity(report: &mut DoctorReport, scope: Scope) {
                 if paths.is_empty() {
                     report.add_check(CheckResult {
                         name: "presets_found".to_string(),
-                        status: "warn".to_string(),
+                        status: CheckStatus::Warn,
                         message: "No presets found".to_string(),
                         details: None,
                     });
@@ -296,7 +300,7 @@ fn check_preset_validity(report: &mut DoctorReport, scope: Scope) {
                                 let (status, message, details) = if !validation.errors.is_empty() {
                                     let error_msg = validation.errors.join("; ");
                                     (
-                                        "fail".to_string(),
+                                        CheckStatus::Fail,
                                         format!(
                                             "Preset '{}' validation failed: {}",
                                             preset.name, error_msg
@@ -308,7 +312,7 @@ fn check_preset_validity(report: &mut DoctorReport, scope: Scope) {
                                     )
                                 } else if !validation.warnings.is_empty() {
                                     (
-                                        "warn".to_string(),
+                                        CheckStatus::Warn,
                                         format!(
                                             "Preset '{}' is valid but has warnings: {}",
                                             preset.name,
@@ -318,7 +322,7 @@ fn check_preset_validity(report: &mut DoctorReport, scope: Scope) {
                                     )
                                 } else {
                                     (
-                                        "pass".to_string(),
+                                        CheckStatus::Pass,
                                         format!("Preset '{}' is valid", preset.name),
                                         None,
                                     )
@@ -343,7 +347,7 @@ fn check_preset_validity(report: &mut DoctorReport, scope: Scope) {
                                 };
                                 report.add_check(CheckResult {
                                     name: format!("preset_parse_{}", identifier),
-                                    status: "fail".to_string(),
+                                    status: CheckStatus::Fail,
                                     message: format!("Failed to parse preset file: {}", e),
                                     details: Some(json!({"path": path.display().to_string()})),
                                 });
@@ -355,7 +359,7 @@ fn check_preset_validity(report: &mut DoctorReport, scope: Scope) {
             Err(e) => {
                 report.add_check(CheckResult {
                     name: "presets_discover".to_string(),
-                    status: "fail".to_string(),
+                    status: CheckStatus::Fail,
                     message: format!("Failed to discover presets: {}", e),
                     details: None,
                 });
@@ -364,7 +368,7 @@ fn check_preset_validity(report: &mut DoctorReport, scope: Scope) {
         Err(e) => {
             report.add_check(CheckResult {
                 name: "preset_store".to_string(),
-                status: "fail".to_string(),
+                status: CheckStatus::Fail,
                 message: format!("Failed to create preset store: {}", e),
                 details: None,
             });
@@ -391,7 +395,7 @@ fn check_inheritance(report: &mut DoctorReport, scope: Scope) {
                             Ok(_) => {
                                 report.add_check(CheckResult {
                                     name: format!("inheritance_{}", preset.name),
-                                    status: "pass".to_string(),
+                                    status: CheckStatus::Pass,
                                     message: format!(
                                         "Preset '{}' inheritance resolves correctly",
                                         preset.name
@@ -404,7 +408,7 @@ fn check_inheritance(report: &mut DoctorReport, scope: Scope) {
                                 let is_circular = error_str.contains("Circular");
                                 report.add_check(CheckResult {
                                     name: format!("inheritance_{}", preset.name),
-                                    status: "fail".to_string(),
+                                    status: CheckStatus::Fail,
                                     message: format!(
                                         "Preset '{}' inheritance failed: {}",
                                         preset.name, error_str
@@ -422,7 +426,7 @@ fn check_inheritance(report: &mut DoctorReport, scope: Scope) {
             Err(e) => {
                 report.add_check(CheckResult {
                     name: "inheritance_check".to_string(),
-                    status: "fail".to_string(),
+                    status: CheckStatus::Fail,
                     message: format!("Failed to check inheritance: {}", e),
                     details: None,
                 });
@@ -431,7 +435,7 @@ fn check_inheritance(report: &mut DoctorReport, scope: Scope) {
         Err(e) => {
             report.add_check(CheckResult {
                 name: "inheritance_check".to_string(),
-                status: "fail".to_string(),
+                status: CheckStatus::Fail,
                 message: format!("Failed to check inheritance: {}", e),
                 details: None,
             });
@@ -466,7 +470,7 @@ fn check_environment_variables(report: &mut DoctorReport, scope: Scope, verbose:
                     missing_vars_vec.sort();
                     report.add_check(CheckResult {
                         name: format!("env_vars_{}", preset.name),
-                        status: "warn".to_string(),
+                        status: CheckStatus::Warn,
                         message: format!(
                             "Preset '{}' references missing environment variables",
                             preset.name
@@ -514,11 +518,10 @@ fn extract_missing_vars(s: &str, missing_vars: &mut HashSet<String>) {
 
 fn output_human_readable(report: &DoctorReport) {
     for check in &report.checks {
-        let status_str = match check.status.as_str() {
-            "pass" => "[OK]",
-            "warn" => "[WARN]",
-            "fail" => "[FAIL]",
-            _ => "? UNKNOWN",
+        let status_str = match check.status {
+            CheckStatus::Pass => "[OK]",
+            CheckStatus::Warn => "[WARN]",
+            CheckStatus::Fail => "[FAIL]",
         };
 
         println!("{}: {}", status_str, check.message);
