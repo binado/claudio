@@ -112,7 +112,7 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 *verbose,
                 cli.claude_executable.as_deref(),
             )?;
-            ExitCode::from(exit_code as u8)
+            ExitCode::from(exit_code)
         }
         Some(Commands::Preset { command }) => match command {
             PresetCommands::List {

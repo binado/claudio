@@ -57,7 +57,7 @@ impl DoctorReport {
         self.checks.push(result);
     }
 
-    fn exit_code(&self) -> i32 {
+    fn exit_code(&self) -> u8 {
         if self.summary.fail > 0 {
             2
         } else if self.summary.warn > 0 {
@@ -73,7 +73,7 @@ pub fn doctor(
     json_output: bool,
     verbose: bool,
     claude_executable_cli: Option<&str>,
-) -> Result<i32> {
+) -> Result<u8> {
     let effective_scope = effective_read_scope(scope);
 
     let claude_executable =
@@ -492,7 +492,7 @@ fn output_human_readable(report: &DoctorReport) {
     println!();
 }
 
-fn output_json(report: &DoctorReport) -> Result<i32> {
+fn output_json(report: &DoctorReport) -> Result<u8> {
     let output = json!({
         "checks": report.checks,
         "summary": {
