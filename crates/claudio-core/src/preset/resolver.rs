@@ -423,7 +423,14 @@ fn resolve_inheritance_recursive(
     Ok(ResolvedPreset {
         name: preset.name.clone(),
         description: preset.description.clone(),
-        prompt: preset.prompt.clone(),
+        prompt: preset.prompt.as_deref().and_then(|p| {
+            let t = p.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        }),
         env: env_vars,
         args,
         settings: resolved_settings,
@@ -452,6 +459,58 @@ mod tests {
             args: None,
             settings: None,
         }
+    }
+
+    #[test]
+    fn test_prompt_normalized_to_none_when_empty_or_whitespace() {
+        // Test whitespace-only string
+        let preset_whitespace = Preset {
+            name: "test".to_string(),
+            description: None,
+            extends: None,
+            prompt: Some("   ".to_string()),
+            env: None,
+            args: None,
+            settings: None,
+        };
+
+        let source = PresetSource::Inline;
+        let cfg = ResolverConfig::default();
+
+        let resolved_whitespace = resolve_inheritance_recursive(
+            &preset_whitespace,
+            source.clone(),
+            None,
+            &cfg,
+            &mut HashSet::new(),
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert!(resolved_whitespace.prompt.is_none());
+
+        // Test truly empty string
+        let preset_empty = Preset {
+            name: "test".to_string(),
+            description: None,
+            extends: None,
+            prompt: Some(String::new()),
+            env: None,
+            args: None,
+            settings: None,
+        };
+
+        let resolved_empty = resolve_inheritance_recursive(
+            &preset_empty,
+            source,
+            None,
+            &cfg,
+            &mut HashSet::new(),
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert!(resolved_empty.prompt.is_none());
     }
 
     #[test]

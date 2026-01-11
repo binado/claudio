@@ -42,7 +42,7 @@ pub fn default_preset(name: &str) -> Preset {
         name: name.to_string(),
         description: Some("Description of this preset".to_string()),
         extends: None,
-        prompt: Some(String::new()),
+        prompt: None,
         env: Some(std::collections::HashMap::new()),
         args: Some(Vec::new()),
         settings: Some(serde_json::json!({})),
