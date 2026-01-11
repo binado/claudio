@@ -94,7 +94,7 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
     let exit_code = match &cli.command {
         Some(Commands::Run(args)) => {
             // Explicit: claudio run my-preset
-            execute_run_command(args, &color_config)?
+            execute_run_command(args, &color_config, cli.claude_executable.as_deref())?
         }
         Some(Commands::Init { scope }) => {
             crate::commands::init::init(scope.scope.into())?;
@@ -124,7 +124,13 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 resolved,
                 json,
             } => {
-                crate::commands::show::show(preset, scope.scope.into(), *resolved, *json)?;
+                crate::commands::show::show(
+                    preset,
+                    scope.scope.into(),
+                    *resolved,
+                    *json,
+                    cli.claude_executable.as_deref(),
+                )?;
                 ExitCode::SUCCESS
             }
             PresetCommands::Edit { preset, scope } => {
@@ -154,14 +160,22 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
         }
         None => {
             // Shorthand: claudio my-preset
-            execute_run_command(&cli.run_args, &color_config)?
+            execute_run_command(
+                &cli.run_args,
+                &color_config,
+                cli.claude_executable.as_deref(),
+            )?
         }
     };
 
     Ok(exit_code)
 }
 
-fn execute_run_command(args: &crate::cli::RunArgs, color_config: &ColorConfig) -> Result<ExitCode> {
+fn execute_run_command(
+    args: &crate::cli::RunArgs,
+    color_config: &ColorConfig,
+    claude_executable: Option<&str>,
+) -> Result<ExitCode> {
     // Check for ignore_user_presets conflict with --scope user
     if args.scope.scope == Scope::User
         && settings_loader::should_ignore_user_presets().unwrap_or(false)
@@ -178,6 +192,7 @@ fn execute_run_command(args: &crate::cli::RunArgs, color_config: &ColorConfig) -
         args.require_preset,
         args.dry_run,
         &args.claude_args,
+        claude_executable,
         color_config,
     )
 }

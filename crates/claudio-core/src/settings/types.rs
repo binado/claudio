@@ -39,6 +39,10 @@ pub struct Settings {
     /// Default is true (show env vars)
     #[serde(default)]
     pub dry_run_show_env: Option<bool>,
+
+    /// Path or name of the Claude Code executable (default: "claude")
+    #[serde(default)]
+    pub claude_executable: Option<String>,
 }
 
 impl Settings {

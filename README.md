@@ -249,6 +249,7 @@ The settings file (`settings.json`) controls default behavior:
 - `require_preset` - Error if no preset is available instead of running bare claude
 - `ignore_user_presets` - Only use project presets (project settings only)
 - `dry_run_show_env` - Include environment variables in `--dry-run` output (default: true)
+- `claude_executable` - Claude Code executable name or path (default: "claude")
 - `presets` - Inline preset definitions (alternative to separate files)
 
 #### Scope Examples
@@ -309,6 +310,44 @@ claudio project-config --scope project
   }
 }
 ```
+
+#### Configuring the Claude Executable
+
+By default, `claudio` runs the `claude` command. However, you can configure a different executable name or path using a precedence system:
+
+**Precedence levels (highest to lowest):**
+1. `--claude-executable` CLI flag
+2. `CLAUDIO_CLAUDE_EXECUTABLE` environment variable
+3. `claude_executable` in settings.json
+4. Default: `"claude"`
+
+**Examples:**
+
+```bash
+# CLI flag override
+claudio --claude-executable /custom/path/claude my-preset
+
+# Environment variable
+export CLAUDIO_CLAUDE_EXECUTABLE=/usr/local/bin/claude
+claudio my-preset
+
+# Settings file
+# In .claudio/settings.json:
+{
+  "claude_executable": "/opt/claude/bin/claude"
+}
+
+# Verify with dry-run
+claudio --claude-executable /path/to/claude --dry-run my-preset
+# Output: /path/to/claude [args...]
+```
+
+**Use cases:**
+- Installing Claude Code under a different name
+- Using a wrapper script to customize execution
+- CI/CD environments requiring absolute paths
+- Multiple Claude versions installed simultaneously
+- Custom installation paths from package managers
 
 #### Custom Home Directory
 
