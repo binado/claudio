@@ -154,6 +154,17 @@ fn resolve_file_path(path: &str, source: &PresetSource) -> Result<PathBuf> {
     }
 }
 
+/// Resolve a file path in a preset's env value relative to its source.
+///
+/// This mirrors the behavior used by env resolution:
+/// - `~` expansion
+/// - absolute paths kept as-is
+/// - relative paths resolved relative to the preset file directory (file presets)
+///   or current directory (inline presets)
+pub fn resolve_file_path_for_source(path: &str, source: &PresetSource) -> Result<PathBuf> {
+    resolve_file_path(path, source)
+}
+
 /// Execute a command and return its stdout
 ///
 /// If confirmation is required and [`ResolverConfig::confirm_command`] is `None`,
