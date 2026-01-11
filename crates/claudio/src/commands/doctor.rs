@@ -111,10 +111,15 @@ pub fn doctor(
                     "error": err.to_string(),
                     "exit_code": 2,
                 });
-                match serde_json::to_string(&fallback) {
+                match serde_json::to_string_pretty(&fallback)
+                    .or_else(|_| serde_json::to_string(&fallback))
+                {
                     Ok(fallback_json) => println!("{fallback_json}"),
                     Err(_) => {
-                        let hard_fallback = r#"{"error":"Failed to serialize doctor report as JSON","exit_code":2}"#;
+                        let hard_fallback = r#"{
+  "error": "Failed to serialize doctor report as JSON",
+  "exit_code": 2
+}"#;
                         println!("{hard_fallback}");
                     }
                 }
