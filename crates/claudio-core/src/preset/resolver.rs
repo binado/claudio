@@ -423,10 +423,14 @@ fn resolve_inheritance_recursive(
     Ok(ResolvedPreset {
         name: preset.name.clone(),
         description: preset.description.clone(),
-        prompt: preset
-            .prompt
-            .as_deref()
-            .and_then(|p| (!p.trim().is_empty()).then(|| p.to_string())),
+        prompt: preset.prompt.as_deref().and_then(|p| {
+            let t = p.trim();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t.to_string())
+            }
+        }),
         env: env_vars,
         args,
         settings: resolved_settings,
