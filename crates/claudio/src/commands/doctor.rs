@@ -460,7 +460,6 @@ fn check_environment_variables(report: &mut DoctorReport, scope: Scope, verbose:
                 for env_value in env.values() {
                     // Check for variable references in direct string values
                     if let claudio_core::preset::types::EnvValue::Direct(s) = env_value {
-                        // Simple pattern matching for ${VAR_NAME}
                         extract_missing_vars(s, &mut missing_vars);
                     }
                 }
@@ -487,30 +486,8 @@ fn check_environment_variables(report: &mut DoctorReport, scope: Scope, verbose:
 
 /// Extract missing environment variable references from a string containing ${VAR_NAME} patterns
 fn extract_missing_vars(s: &str, missing_vars: &mut HashSet<String>) {
-    let mut iter = s.chars().peekable();
-    while let Some(c) = iter.next() {
-        if c != '$' {
-            continue;
-        }
-
-        if iter.peek().copied() != Some('{') {
-            continue;
-        }
-
-        // consume '{'
-        iter.next();
-
-        let mut var_name = String::new();
-        while let Some(&ch) = iter.peek() {
-            if ch == '}' {
-                iter.next();
-                break;
-            }
-            var_name.push(ch);
-            iter.next();
-        }
-
-        if !var_name.is_empty() && std::env::var(&var_name).is_err() {
+    for var_name in resolver::extract_variable_references(s) {
+        if std::env::var(&var_name).is_err() {
             missing_vars.insert(var_name);
         }
     }

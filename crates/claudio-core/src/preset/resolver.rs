@@ -10,6 +10,17 @@ use std::sync::LazyLock;
 static VAR_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\$\{([A-Z_][A-Z0-9_]*)\}").expect("Invalid regex pattern"));
 
+/// Extract `${VAR_NAME}` references from a string.
+///
+/// This uses the same pattern as variable substitution in preset env values and
+/// settings resolution.
+pub fn extract_variable_references(value: &str) -> Vec<String> {
+    VAR_REGEX
+        .captures_iter(value)
+        .map(|caps| caps[1].to_string())
+        .collect()
+}
+
 /// CLI-provided interface for confirming command execution.
 ///
 /// `claudio-core` does not perform terminal I/O. If a preset contains a
