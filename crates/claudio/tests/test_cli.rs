@@ -452,8 +452,7 @@ fn test_doctor_command_basic() {
     );
 
     // Verify output contains expected checks
-    assert!(stdout.contains("Claudio Doctor Report"));
-    assert!(stdout.contains("PASS") || stdout.contains("WARN") || stdout.contains("FAIL"));
+    assert!(stdout.contains("[OK]") || stdout.contains("[WARN]") || stdout.contains("[FAIL]"));
     assert!(stdout.contains("Summary:"));
     assert!(stdout.contains("Exit code:"));
 }

@@ -111,7 +111,6 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 *json,
                 *verbose,
                 cli.claude_executable.as_deref(),
-                &color_config,
             )?;
             ExitCode::from(exit_code as u8)
         }

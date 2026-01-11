@@ -1,4 +1,3 @@
-use crate::color::ColorConfig;
 use crate::commands::{build_resolver_config, effective_read_scope};
 use anyhow::Result;
 use claudio_core::preset::resolver;
@@ -69,7 +68,6 @@ pub fn doctor(
     json_output: bool,
     verbose: bool,
     claude_executable_cli: Option<&str>,
-    color_config: &ColorConfig,
 ) -> Result<i32> {
     let effective_scope = effective_read_scope(scope);
 
@@ -100,7 +98,7 @@ pub fn doctor(
     if json_output {
         output_json(&report);
     } else {
-        output_human_readable(&report, color_config);
+        output_human_readable(&report);
     }
 
     Ok(report.exit_code())
@@ -445,14 +443,12 @@ fn extract_missing_vars(s: &str, missing_vars: &mut Vec<String>) {
     }
 }
 
-fn output_human_readable(report: &DoctorReport, color_config: &ColorConfig) {
-    println!("\n{}\n", color_config.highlight("Claudio Doctor Report"));
-
+fn output_human_readable(report: &DoctorReport) {
     for check in &report.checks {
         let status_str = match check.status.as_str() {
-            "pass" => "✓ PASS",
-            "warn" => "⚠ WARN",
-            "fail" => "✗ FAIL",
+            "pass" => "[OK]",
+            "warn" => "[WARN]",
+            "fail" => "[FAIL]",
             _ => "? UNKNOWN",
         };
 
