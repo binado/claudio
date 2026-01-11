@@ -47,7 +47,10 @@ impl DoctorReport {
             "pass" => self.summary.pass += 1,
             "warn" => self.summary.warn += 1,
             "fail" => self.summary.fail += 1,
-            _ => {}
+            _ => {
+                eprintln!("Unexpected status: treating as fail");
+                self.summary.fail += 1;
+            }
         }
         self.checks.push(result);
     }
