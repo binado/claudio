@@ -228,22 +228,49 @@ fn check_preset_directories(report: &mut DoctorReport, scope: Scope) {
     };
 
     for (scope_name, dirs_result) in dirs_to_check {
-        if let Ok(dirs) = dirs_result
-            && let Some(dir) = dirs.first()
-        {
-            if dir.exists() && dir.is_dir() {
+        match dirs_result {
+            Ok(dirs) => {
+                let Some(dir) = dirs.first() else {
+                    report.add_check(CheckResult {
+                        name: format!("preset_dir_{}", scope_name),
+                        status: "fail".to_string(),
+                        message: format!(
+                            "Failed to get preset directory path for {} scope",
+                            scope_name
+                        ),
+                        details: None,
+                    });
+                    continue;
+                };
+
+                if dir.exists() && dir.is_dir() {
+                    report.add_check(CheckResult {
+                        name: format!("preset_dir_{}", scope_name),
+                        status: "pass".to_string(),
+                        message: format!("{} preset directory exists", scope_name),
+                        details: Some(json!({"path": dir.display().to_string()})),
+                    });
+                } else {
+                    report.add_check(CheckResult {
+                        name: format!("preset_dir_{}", scope_name),
+                        status: "warn".to_string(),
+                        message: format!(
+                            "{} preset directory does not exist (optional)",
+                            scope_name
+                        ),
+                        details: Some(json!({"path": dir.display().to_string()})),
+                    });
+                }
+            }
+            Err(e) => {
                 report.add_check(CheckResult {
                     name: format!("preset_dir_{}", scope_name),
-                    status: "pass".to_string(),
-                    message: format!("{} preset directory exists", scope_name),
-                    details: Some(json!({"path": dir.display().to_string()})),
-                });
-            } else {
-                report.add_check(CheckResult {
-                    name: format!("preset_dir_{}", scope_name),
-                    status: "warn".to_string(),
-                    message: format!("{} preset directory does not exist (optional)", scope_name),
-                    details: Some(json!({"path": dir.display().to_string()})),
+                    status: "fail".to_string(),
+                    message: format!(
+                        "Failed to get preset directories for {} scope: {}",
+                        scope_name, e
+                    ),
+                    details: None,
                 });
             }
         }
