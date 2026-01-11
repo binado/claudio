@@ -1,5 +1,5 @@
 use crate::commands::{build_resolver_config, effective_read_scope};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use claudio_core::preset::resolver;
 use claudio_core::preset::store::PresetStore;
 use claudio_core::scope::Scope;
@@ -99,12 +99,20 @@ pub fn doctor(
 
     // Output results
     if json_output {
-        output_json(&report);
+        match output_json(&report) {
+            Ok(exit_code) => Ok(exit_code),
+            Err(err) => {
+                eprintln!("{err:#}");
+                let fallback =
+                    r#"{"error":"Failed to serialize doctor report as JSON","exit_code":2}"#;
+                println!("{fallback}");
+                Ok(2)
+            }
+        }
     } else {
         output_human_readable(&report);
+        Ok(report.exit_code())
     }
-
-    Ok(report.exit_code())
 }
 
 fn check_claude_executable(report: &mut DoctorReport, executable: &str) {
@@ -467,7 +475,7 @@ fn output_human_readable(report: &DoctorReport) {
     println!();
 }
 
-fn output_json(report: &DoctorReport) {
+fn output_json(report: &DoctorReport) -> Result<i32> {
     let output = json!({
         "checks": report.checks,
         "summary": {
@@ -478,5 +486,8 @@ fn output_json(report: &DoctorReport) {
         "exit_code": report.exit_code(),
     });
 
-    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    let json_str = serde_json::to_string_pretty(&output)
+        .context("Failed to serialize doctor report as JSON")?;
+    println!("{}", json_str);
+    Ok(report.exit_code())
 }
