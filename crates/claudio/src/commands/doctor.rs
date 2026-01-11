@@ -6,6 +6,7 @@ use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
 use serde::Serialize;
 use serde_json::json;
+use std::collections::HashSet;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::process::Command;
@@ -420,7 +421,7 @@ fn check_environment_variables(report: &mut DoctorReport, scope: Scope, verbose:
             if let Ok(preset) = claudio_core::preset::loader::load_preset(&path)
                 && let Some(env) = &preset.env
             {
-                let mut missing_vars = Vec::new();
+                let mut missing_vars = HashSet::new();
 
                 for env_value in env.values() {
                     // Check for variable references in direct string values
@@ -431,6 +432,8 @@ fn check_environment_variables(report: &mut DoctorReport, scope: Scope, verbose:
                 }
 
                 if !missing_vars.is_empty() {
+                    let mut missing_vars_vec: Vec<String> = missing_vars.into_iter().collect();
+                    missing_vars_vec.sort();
                     report.add_check(CheckResult {
                         name: format!("env_vars_{}", preset.name),
                         status: "warn".to_string(),
@@ -439,7 +442,7 @@ fn check_environment_variables(report: &mut DoctorReport, scope: Scope, verbose:
                             preset.name
                         ),
                         details: Some(json!({
-                            "missing_variables": missing_vars
+                            "missing_variables": missing_vars_vec
                         })),
                     });
                 }
@@ -449,7 +452,7 @@ fn check_environment_variables(report: &mut DoctorReport, scope: Scope, verbose:
 }
 
 /// Extract missing environment variable references from a string containing ${VAR_NAME} patterns
-fn extract_missing_vars(s: &str, missing_vars: &mut Vec<String>) {
+fn extract_missing_vars(s: &str, missing_vars: &mut HashSet<String>) {
     let mut iter = s.chars().peekable();
     while let Some(c) = iter.next() {
         if c != '$' {
@@ -473,11 +476,8 @@ fn extract_missing_vars(s: &str, missing_vars: &mut Vec<String>) {
             iter.next();
         }
 
-        if !var_name.is_empty()
-            && std::env::var(&var_name).is_err()
-            && !missing_vars.contains(&var_name)
-        {
-            missing_vars.push(var_name);
+        if !var_name.is_empty() && std::env::var(&var_name).is_err() {
+            missing_vars.insert(var_name);
         }
     }
 }
