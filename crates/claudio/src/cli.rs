@@ -89,6 +89,19 @@ pub enum Commands {
         #[command(subcommand)]
         command: PresetCommands,
     },
+    /// Validate installation, settings, presets, and common misconfigurations
+    Doctor {
+        #[command(flatten)]
+        scope: ScopeArgs,
+
+        /// Output results as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Show detailed information for all checks
+        #[arg(short, long)]
+        verbose: bool,
+    },
     /// Generate shell completion scripts
     Completion {
         /// Shell to generate completions for

@@ -427,3 +427,132 @@ fn test_preset_add_extends_finds_base_in_user_scope() {
     let content = std::fs::read_to_string(&preset_path).unwrap();
     assert!(content.contains("\"extends\": \"user-base\""));
 }
+
+#[test]
+#[serial]
+fn test_doctor_command_basic() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+
+    // Run doctor command
+    let output = run_claudio(
+        &env.project_dir,
+        &["doctor"],
+        &[
+            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            ("CLAUDIO_CLAUDE_EXECUTABLE", "true"),
+        ],
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Doctor should succeed (exit code 0 or 1 for warnings)
+    assert!(
+        output.status.success() || output.status.code() == Some(1),
+        "Doctor command failed\nstdout:\n{}\nstderr:\n{}",
+        stdout,
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify output contains expected checks
+    assert!(stdout.contains("[OK]") || stdout.contains("[WARN]") || stdout.contains("[FAIL]"));
+    assert!(stdout.contains("Summary:"));
+    assert!(stdout.contains("Exit code:"));
+}
+
+#[test]
+#[serial]
+fn test_doctor_command_json_output() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+
+    // Run doctor command with --json flag
+    let output = run_claudio(
+        &env.project_dir,
+        &["doctor", "--json"],
+        &[
+            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            ("CLAUDIO_CLAUDE_EXECUTABLE", "true"),
+        ],
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Should succeed
+    assert!(
+        output.status.success() || output.status.code() == Some(1),
+        "Doctor --json command failed\nstdout:\n{}\nstderr:\n{}",
+        stdout,
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify JSON output is valid
+    let json: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
+    assert!(
+        json.is_ok(),
+        "Doctor JSON output is not valid JSON:\n{}",
+        stdout
+    );
+
+    let json_obj = json.unwrap();
+    assert!(json_obj.get("checks").is_some());
+    assert!(json_obj.get("summary").is_some());
+    assert!(json_obj.get("exit_code").is_some());
+}
+
+#[test]
+#[serial]
+fn test_doctor_command_fails_when_executable_missing() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+
+    // Run doctor command with a bogus executable
+    let output = run_claudio(
+        &env.project_dir,
+        &["doctor", "--json"],
+        &[
+            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (
+                "CLAUDIO_CLAUDE_EXECUTABLE",
+                "definitely-not-a-real-claude-executable-12345",
+            ),
+        ],
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "Doctor should fail when executable is missing\nstdout:\n{}\nstderr:\n{}",
+        stdout,
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let json_obj: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|_| panic!("Doctor JSON output is not valid JSON:\n{}", stdout));
+
+    assert_eq!(
+        json_obj.get("exit_code").and_then(|v| v.as_i64()),
+        Some(2),
+        "Expected exit_code=2 in doctor JSON\n{}",
+        stdout
+    );
+
+    let checks = json_obj
+        .get("checks")
+        .and_then(|v| v.as_array())
+        .expect("Expected checks array in doctor JSON");
+
+    let claude_check = checks
+        .iter()
+        .find(|c| c.get("name").and_then(|v| v.as_str()) == Some("claude_executable"))
+        .expect("Expected a claude_executable check in doctor JSON");
+
+    assert_eq!(
+        claude_check.get("status").and_then(|v| v.as_str()),
+        Some("fail"),
+        "Expected claude_executable status=fail\n{}",
+        stdout
+    );
+}

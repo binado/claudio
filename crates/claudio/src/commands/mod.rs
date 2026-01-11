@@ -1,5 +1,6 @@
 pub mod add;
 pub mod completion;
+pub mod doctor;
 pub mod edit;
 pub mod editor;
 pub mod env;
