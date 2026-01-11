@@ -231,7 +231,8 @@ fn build_dry_run_command(
     }
 
     // Add command name
-    output.push_str(claude_executable);
+    let escaped_executable = shell_escape(claude_executable);
+    output.push_str(&escaped_executable);
 
     // Add arguments
     if !args.is_empty() {
