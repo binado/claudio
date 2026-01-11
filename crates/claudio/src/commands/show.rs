@@ -68,9 +68,7 @@ pub fn show(
             }
         }
 
-        if let Some(prompt) = &resolved_preset.prompt
-            && !prompt.trim().is_empty()
-        {
+        if let Some(prompt) = &resolved_preset.prompt {
             println!("\nPrompt:");
             println!("  {}", prompt);
         }
