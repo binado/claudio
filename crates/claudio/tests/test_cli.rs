@@ -427,3 +427,70 @@ fn test_preset_add_extends_finds_base_in_user_scope() {
     let content = std::fs::read_to_string(&preset_path).unwrap();
     assert!(content.contains("\"extends\": \"user-base\""));
 }
+
+#[test]
+#[serial]
+fn test_doctor_command_basic() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+
+    // Run doctor command
+    let output = run_claudio(
+        &env.project_dir,
+        &["doctor"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Doctor should succeed (exit code 0 or 1 for warnings)
+    assert!(
+        output.status.success() || output.status.code() == Some(1),
+        "Doctor command failed\nstdout:\n{}\nstderr:\n{}",
+        stdout,
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify output contains expected checks
+    assert!(stdout.contains("Claudio Doctor Report"));
+    assert!(stdout.contains("PASS") || stdout.contains("WARN") || stdout.contains("FAIL"));
+    assert!(stdout.contains("Summary:"));
+    assert!(stdout.contains("Exit code:"));
+}
+
+#[test]
+#[serial]
+fn test_doctor_command_json_output() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+
+    // Run doctor command with --json flag
+    let output = run_claudio(
+        &env.project_dir,
+        &["doctor", "--json"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Should succeed
+    assert!(
+        output.status.success() || output.status.code() == Some(1),
+        "Doctor --json command failed\nstdout:\n{}\nstderr:\n{}",
+        stdout,
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify JSON output is valid
+    let json: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
+    assert!(
+        json.is_ok(),
+        "Doctor JSON output is not valid JSON:\n{}",
+        stdout
+    );
+
+    let json_obj = json.unwrap();
+    assert!(json_obj.get("checks").is_some());
+    assert!(json_obj.get("summary").is_some());
+    assert!(json_obj.get("exit_code").is_some());
+}

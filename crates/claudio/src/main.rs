@@ -26,6 +26,7 @@ fn main() -> ExitCode {
     let settings_scope = match &cli.command {
         Some(Commands::Run(args)) => args.scope.scope,
         Some(Commands::Init { scope }) => scope.scope,
+        Some(Commands::Doctor { scope, .. }) => scope.scope,
         Some(Commands::Preset { command }) => match command {
             PresetCommands::List { scope, .. }
             | PresetCommands::Show { scope, .. }
@@ -99,6 +100,20 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
         Some(Commands::Init { scope }) => {
             crate::commands::init::init(scope.scope.into())?;
             ExitCode::SUCCESS
+        }
+        Some(Commands::Doctor {
+            scope,
+            json,
+            verbose,
+        }) => {
+            let exit_code = crate::commands::doctor::doctor(
+                scope.scope.into(),
+                *json,
+                *verbose,
+                cli.claude_executable.as_deref(),
+                &color_config,
+            )?;
+            ExitCode::from(exit_code as u8)
         }
         Some(Commands::Preset { command }) => match command {
             PresetCommands::List {
