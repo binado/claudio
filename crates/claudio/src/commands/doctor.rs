@@ -142,7 +142,7 @@ fn check_claude_executable(report: &mut DoctorReport, executable: &str) {
 }
 
 fn check_settings(report: &mut DoctorReport, scope: Scope) {
-    // Check project scope settings
+    // Check settings files
     match settings_loader::load_settings(scope) {
         Ok(Some(settings)) => match settings.validate(scope) {
             Ok(_) => {
