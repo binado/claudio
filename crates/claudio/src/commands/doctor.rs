@@ -9,7 +9,7 @@ use serde_json::json;
 use std::collections::HashSet;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::process::Command;
+use std::process::{Command, ExitCode};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CheckResult {
@@ -74,7 +74,7 @@ pub fn doctor(
     json_output: bool,
     verbose: bool,
     claude_executable_cli: Option<&str>,
-) -> Result<u8> {
+) -> Result<ExitCode> {
     let effective_scope = effective_read_scope(scope);
 
     let claude_executable =
@@ -105,7 +105,7 @@ pub fn doctor(
         match output_json(&report) {
             Ok(exit_code) => Ok(exit_code),
             Err(err) => {
-                let err = anyhow::anyhow!(err).context("Doctor JSON output failed");
+                let err = err.context("Doctor JSON output failed");
 
                 let fallback = json!({
                     "error": err.to_string(),
@@ -123,12 +123,12 @@ pub fn doctor(
                         println!("{hard_fallback}");
                     }
                 }
-                Ok(2)
+                Ok(ExitCode::from(2))
             }
         }
     } else {
         output_human_readable(&report);
-        Ok(report.exit_code())
+        Ok(ExitCode::from(report.exit_code()))
     }
 }
 
@@ -279,90 +279,88 @@ fn check_preset_directories(report: &mut DoctorReport, scope: Scope) {
 
 fn check_preset_validity(report: &mut DoctorReport, scope: Scope) {
     match PresetStore::new(scope) {
-        Ok(store) => {
-            match store.discover_all() {
-                Ok(paths) => {
-                    if paths.is_empty() {
-                        report.add_check(CheckResult {
-                            name: "presets_found".to_string(),
-                            status: "warn".to_string(),
-                            message: "No presets found".to_string(),
-                            details: None,
-                        });
-                    } else {
-                        for path in paths {
-                            match claudio_core::preset::loader::load_preset(&path) {
-                                Ok(preset) => {
-                                    let validation = preset.validate(Some(&path));
-                                    if validation.is_valid() {
-                                        report.add_check(CheckResult {
-                                            name: format!("preset_valid_{}", preset.name),
-                                            status: "pass".to_string(),
-                                            message: format!("Preset '{}' is valid", preset.name),
-                                            details: None,
-                                        });
-                                    } else {
-                                        let error_msg = validation.errors.join("; ");
-                                        report.add_check(CheckResult {
-                                            name: format!("preset_valid_{}", preset.name),
-                                            status: "fail".to_string(),
-                                            message: format!(
-                                                "Preset '{}' validation failed: {}",
-                                                preset.name, error_msg
-                                            ),
-                                            details: Some(json!({
-                                                "errors": validation.errors,
-                                                "warnings": validation.warnings
-                                            })),
-                                        });
-                                    }
+        Ok(store) => match store.discover_all() {
+            Ok(paths) => {
+                if paths.is_empty() {
+                    report.add_check(CheckResult {
+                        name: "presets_found".to_string(),
+                        status: "warn".to_string(),
+                        message: "No presets found".to_string(),
+                        details: None,
+                    });
+                } else {
+                    for path in paths {
+                        match claudio_core::preset::loader::load_preset(&path) {
+                            Ok(preset) => {
+                                let validation = preset.validate(Some(&path));
+                                let (status, message, details) = if !validation.errors.is_empty() {
+                                    let error_msg = validation.errors.join("; ");
+                                    (
+                                        "fail".to_string(),
+                                        format!(
+                                            "Preset '{}' validation failed: {}",
+                                            preset.name, error_msg
+                                        ),
+                                        Some(json!({
+                                            "errors": validation.errors,
+                                            "warnings": validation.warnings,
+                                        })),
+                                    )
+                                } else if !validation.warnings.is_empty() {
+                                    (
+                                        "warn".to_string(),
+                                        format!(
+                                            "Preset '{}' is valid but has warnings: {}",
+                                            preset.name,
+                                            validation.warnings.join("; ")
+                                        ),
+                                        Some(json!({"warnings": validation.warnings})),
+                                    )
+                                } else {
+                                    (
+                                        "pass".to_string(),
+                                        format!("Preset '{}' is valid", preset.name),
+                                        None,
+                                    )
+                                };
 
-                                    // Also warn on validation warnings
-                                    if !validation.warnings.is_empty() {
-                                        report.add_check(CheckResult {
-                                            name: format!("preset_warnings_{}", preset.name),
-                                            status: "warn".to_string(),
-                                            message: format!(
-                                                "Preset '{}' has warnings: {}",
-                                                preset.name,
-                                                validation.warnings.join("; ")
-                                            ),
-                                            details: Some(json!({"warnings": validation.warnings})),
-                                        });
-                                    }
-                                }
-                                Err(e) => {
-                                    let path_lossy = path.to_string_lossy();
-                                    let mut hasher = DefaultHasher::new();
-                                    path_lossy.hash(&mut hasher);
-                                    let path_hash = format!("{:016x}", hasher.finish());
+                                report.add_check(CheckResult {
+                                    name: format!("preset_valid_{}", preset.name),
+                                    status,
+                                    message,
+                                    details,
+                                });
+                            }
+                            Err(e) => {
+                                let path_lossy = path.to_string_lossy();
+                                let mut hasher = DefaultHasher::new();
+                                path_lossy.hash(&mut hasher);
+                                let path_hash = format!("{:016x}", hasher.finish());
 
-                                    let identifier = match path.file_stem().and_then(|s| s.to_str())
-                                    {
-                                        Some(stem) => format!("{}_{}", stem, path_hash),
-                                        None => path_hash,
-                                    };
-                                    report.add_check(CheckResult {
-                                        name: format!("preset_parse_{}", identifier),
-                                        status: "fail".to_string(),
-                                        message: format!("Failed to parse preset file: {}", e),
-                                        details: Some(json!({"path": path.display().to_string()})),
-                                    });
-                                }
+                                let identifier = match path.file_stem().and_then(|s| s.to_str()) {
+                                    Some(stem) => format!("{}_{}", stem, path_hash),
+                                    None => path_hash,
+                                };
+                                report.add_check(CheckResult {
+                                    name: format!("preset_parse_{}", identifier),
+                                    status: "fail".to_string(),
+                                    message: format!("Failed to parse preset file: {}", e),
+                                    details: Some(json!({"path": path.display().to_string()})),
+                                });
                             }
                         }
                     }
                 }
-                Err(e) => {
-                    report.add_check(CheckResult {
-                        name: "presets_discover".to_string(),
-                        status: "fail".to_string(),
-                        message: format!("Failed to discover presets: {}", e),
-                        details: None,
-                    });
-                }
             }
-        }
+            Err(e) => {
+                report.add_check(CheckResult {
+                    name: "presets_discover".to_string(),
+                    status: "fail".to_string(),
+                    message: format!("Failed to discover presets: {}", e),
+                    details: None,
+                });
+            }
+        },
         Err(e) => {
             report.add_check(CheckResult {
                 name: "preset_store".to_string(),
@@ -535,7 +533,7 @@ fn output_human_readable(report: &DoctorReport) {
     println!();
 }
 
-fn output_json(report: &DoctorReport) -> Result<u8> {
+fn output_json(report: &DoctorReport) -> Result<ExitCode> {
     let output = json!({
         "checks": report.checks,
         "summary": {
@@ -549,5 +547,5 @@ fn output_json(report: &DoctorReport) -> Result<u8> {
     let json_str = serde_json::to_string_pretty(&output)
         .context("Failed to serialize doctor report as JSON")?;
     println!("{}", json_str);
-    Ok(report.exit_code())
+    Ok(ExitCode::from(report.exit_code()))
 }

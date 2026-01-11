@@ -105,15 +105,12 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
             scope,
             json,
             verbose,
-        }) => {
-            let exit_code = crate::commands::doctor::doctor(
-                scope.scope.into(),
-                *json,
-                *verbose,
-                cli.claude_executable.as_deref(),
-            )?;
-            ExitCode::from(exit_code)
-        }
+        }) => crate::commands::doctor::doctor(
+            scope.scope.into(),
+            *json,
+            *verbose,
+            cli.claude_executable.as_deref(),
+        )?,
         Some(Commands::Preset { command }) => match command {
             PresetCommands::List {
                 scope,
