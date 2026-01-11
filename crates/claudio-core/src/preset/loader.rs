@@ -83,7 +83,7 @@ fn format_search_locations(dirs: &[PathBuf]) -> String {
         .join("\n")
 }
 
-pub fn find_preset(name: &str) -> Result<PathBuf> {
+pub(crate) fn find_preset(name: &str) -> Result<PathBuf> {
     let dirs = get_preset_dirs();
     for dir in &dirs {
         let path = preset_path_for_name(dir, name);
@@ -277,7 +277,7 @@ pub fn preset_path_for_name(dir: &std::path::Path, name: &str) -> PathBuf {
     preset_path_for_name_encoded(dir, name)
 }
 
-pub fn get_preset_dirs() -> Vec<PathBuf> {
+pub(crate) fn get_preset_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
 
     if let Some(project_dir) = get_project_preset_dir() {
