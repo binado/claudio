@@ -183,7 +183,6 @@ fn check_settings(report: &mut DoctorReport, scope: Scope) {
     }
 }
 
-#[allow(clippy::collapsible_if)]
 fn check_preset_directories(report: &mut DoctorReport, scope: Scope) {
     use claudio_core::preset::loader;
 
@@ -203,26 +202,23 @@ fn check_preset_directories(report: &mut DoctorReport, scope: Scope) {
     };
 
     for (scope_name, dirs_result) in dirs_to_check {
-        if let Ok(dirs) = dirs_result {
-            if let Some(dir) = dirs.first() {
-                if dir.exists() && dir.is_dir() {
-                    report.add_check(CheckResult {
-                        name: format!("preset_dir_{}", scope_name),
-                        status: "pass".to_string(),
-                        message: format!("{} preset directory exists", scope_name),
-                        details: Some(json!({"path": dir.display().to_string()})),
-                    });
-                } else {
-                    report.add_check(CheckResult {
-                        name: format!("preset_dir_{}", scope_name),
-                        status: "warn".to_string(),
-                        message: format!(
-                            "{} preset directory does not exist (optional)",
-                            scope_name
-                        ),
-                        details: Some(json!({"path": dir.display().to_string()})),
-                    });
-                }
+        if let Ok(dirs) = dirs_result
+            && let Some(dir) = dirs.first()
+        {
+            if dir.exists() && dir.is_dir() {
+                report.add_check(CheckResult {
+                    name: format!("preset_dir_{}", scope_name),
+                    status: "pass".to_string(),
+                    message: format!("{} preset directory exists", scope_name),
+                    details: Some(json!({"path": dir.display().to_string()})),
+                });
+            } else {
+                report.add_check(CheckResult {
+                    name: format!("preset_dir_{}", scope_name),
+                    status: "warn".to_string(),
+                    message: format!("{} preset directory does not exist (optional)", scope_name),
+                    details: Some(json!({"path": dir.display().to_string()})),
+                });
             }
         }
     }
@@ -319,49 +315,48 @@ fn check_preset_validity(report: &mut DoctorReport, scope: Scope) {
     }
 }
 
-#[allow(clippy::collapsible_if)]
 fn check_inheritance(report: &mut DoctorReport, scope: Scope) {
     match PresetStore::new(scope) {
         Ok(store) => match store.discover_all() {
             Ok(paths) => {
                 for path in paths {
-                    if let Ok(preset) = claudio_core::preset::loader::load_preset(&path) {
-                        if preset.extends.is_some() {
-                            let resolver_cfg = build_resolver_config(scope);
-                            let source = claudio_core::preset::types::PresetSource::File(path);
-                            match resolver::resolve_inheritance_with_store(
-                                &preset,
-                                source,
-                                &store,
-                                &resolver_cfg,
-                            ) {
-                                Ok(_) => {
-                                    report.add_check(CheckResult {
-                                        name: format!("inheritance_{}", preset.name),
-                                        status: "pass".to_string(),
-                                        message: format!(
-                                            "Preset '{}' inheritance resolves correctly",
-                                            preset.name
-                                        ),
-                                        details: None,
-                                    });
-                                }
-                                Err(e) => {
-                                    let error_str = e.to_string();
-                                    let is_circular = error_str.contains("Circular");
-                                    report.add_check(CheckResult {
-                                        name: format!("inheritance_{}", preset.name),
-                                        status: "fail".to_string(),
-                                        message: format!(
-                                            "Preset '{}' inheritance failed: {}",
-                                            preset.name, error_str
-                                        ),
-                                        details: Some(json!({
-                                            "is_circular": is_circular,
-                                            "extends": preset.extends
-                                        })),
-                                    });
-                                }
+                    if let Ok(preset) = claudio_core::preset::loader::load_preset(&path)
+                        && preset.extends.is_some()
+                    {
+                        let resolver_cfg = build_resolver_config(scope);
+                        let source = claudio_core::preset::types::PresetSource::File(path);
+                        match resolver::resolve_inheritance_with_store(
+                            &preset,
+                            source,
+                            &store,
+                            &resolver_cfg,
+                        ) {
+                            Ok(_) => {
+                                report.add_check(CheckResult {
+                                    name: format!("inheritance_{}", preset.name),
+                                    status: "pass".to_string(),
+                                    message: format!(
+                                        "Preset '{}' inheritance resolves correctly",
+                                        preset.name
+                                    ),
+                                    details: None,
+                                });
+                            }
+                            Err(e) => {
+                                let error_str = e.to_string();
+                                let is_circular = error_str.contains("Circular");
+                                report.add_check(CheckResult {
+                                    name: format!("inheritance_{}", preset.name),
+                                    status: "fail".to_string(),
+                                    message: format!(
+                                        "Preset '{}' inheritance failed: {}",
+                                        preset.name, error_str
+                                    ),
+                                    details: Some(json!({
+                                        "is_circular": is_circular,
+                                        "extends": preset.extends
+                                    })),
+                                });
                             }
                         }
                     }
@@ -387,69 +382,66 @@ fn check_inheritance(report: &mut DoctorReport, scope: Scope) {
     }
 }
 
-#[allow(clippy::single_match, clippy::while_let_on_iterator)]
 fn check_environment_variables(report: &mut DoctorReport, scope: Scope, verbose: bool) {
     if !verbose {
         return; // Skip this check unless verbose
     }
 
-    match PresetStore::new(scope) {
-        Ok(store) => {
-            match store.discover_all() {
-                Ok(paths) => {
-                    for path in paths {
-                        if let Ok(preset) = claudio_core::preset::loader::load_preset(&path)
-                            && let Some(env) = &preset.env
-                        {
-                            let mut missing_vars = Vec::new();
+    if let Ok(store) = PresetStore::new(scope)
+        && let Ok(paths) = store.discover_all()
+    {
+        for path in paths {
+            if let Ok(preset) = claudio_core::preset::loader::load_preset(&path)
+                && let Some(env) = &preset.env
+            {
+                let mut missing_vars = Vec::new();
 
-                            for env_value in env.values() {
-                                // Check for variable references in direct string values
-                                if let claudio_core::preset::types::EnvValue::Direct(s) = env_value
-                                {
-                                    // Simple regex pattern matching for ${VAR_NAME}
-                                    let mut chars = s.chars().peekable();
-                                    while let Some(c) = chars.next() {
-                                        if c == '$' && chars.peek() == Some(&'{') {
-                                            chars.next(); // consume '{'
-                                            let mut var_name = String::new();
-                                            while let Some(c) = chars.next() {
-                                                if c == '}' {
-                                                    break;
-                                                }
-                                                var_name.push(c);
-                                            }
-                                            if !var_name.is_empty()
-                                                && std::env::var(&var_name).is_err()
-                                                && !missing_vars.contains(&var_name)
-                                            {
-                                                missing_vars.push(var_name);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if !missing_vars.is_empty() {
-                                report.add_check(CheckResult {
-                                    name: format!("env_vars_{}", preset.name),
-                                    status: "warn".to_string(),
-                                    message: format!(
-                                        "Preset '{}' references missing environment variables",
-                                        preset.name
-                                    ),
-                                    details: Some(json!({
-                                        "missing_variables": missing_vars
-                                    })),
-                                });
-                            }
-                        }
+                for env_value in env.values() {
+                    // Check for variable references in direct string values
+                    if let claudio_core::preset::types::EnvValue::Direct(s) = env_value {
+                        // Simple pattern matching for ${VAR_NAME}
+                        extract_missing_vars(s, &mut missing_vars);
                     }
                 }
-                Err(_) => {}
+
+                if !missing_vars.is_empty() {
+                    report.add_check(CheckResult {
+                        name: format!("env_vars_{}", preset.name),
+                        status: "warn".to_string(),
+                        message: format!(
+                            "Preset '{}' references missing environment variables",
+                            preset.name
+                        ),
+                        details: Some(json!({
+                            "missing_variables": missing_vars
+                        })),
+                    });
+                }
             }
         }
-        Err(_) => {}
+    }
+}
+
+/// Extract missing environment variable references from a string containing ${VAR_NAME} patterns
+fn extract_missing_vars(s: &str, missing_vars: &mut Vec<String>) {
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '$' && i + 1 < chars.len() && chars[i + 1] == '{' {
+            i += 2; // skip ${
+            let mut var_name = String::new();
+            while i < chars.len() && chars[i] != '}' {
+                var_name.push(chars[i]);
+                i += 1;
+            }
+            if !var_name.is_empty()
+                && std::env::var(&var_name).is_err()
+                && !missing_vars.contains(&var_name)
+            {
+                missing_vars.push(var_name);
+            }
+        }
+        i += 1;
     }
 }
 
