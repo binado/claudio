@@ -46,6 +46,35 @@ pub fn load_settings(scope: Scope) -> Result<Option<Settings>> {
     Ok(Some(settings))
 }
 
+/// Generic helper to resolve a setting field with scope precedence
+///
+/// For `Scope::Auto`: project settings take precedence over user settings.
+/// Only returns a value if the field is `Some(_)` in the resolved scope.
+///
+/// # Arguments
+/// * `scope` - The scope to resolve (Project, User, or Auto)
+/// * `getter` - A function that extracts the desired field from Settings
+fn resolve_scoped_setting<T>(
+    scope: Scope,
+    getter: impl Fn(&Settings) -> Option<T>,
+) -> Result<Option<T>> {
+    match scope {
+        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| getter(&s))),
+        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| getter(&s))),
+        Scope::Auto => {
+            // Check project first, then fall back to user
+            if let Some(project_settings) = load_settings(Scope::Project)?
+                && let Some(value) = getter(&project_settings)
+            {
+                return Ok(Some(value));
+            }
+
+            // No project settings file exists, or project settings has no value for this field
+            Ok(load_settings(Scope::User)?.and_then(|s| getter(&s)))
+        }
+    }
+}
+
 /// Resolve the default preset name considering scope precedence
 ///
 /// For `Scope::Auto`:
@@ -53,21 +82,7 @@ pub fn load_settings(scope: Scope) -> Result<Option<Settings>> {
 /// - Otherwise, fall back to user settings default_preset
 /// - If neither have a default, return None
 pub fn resolve_default_preset(scope: Scope) -> Result<Option<String>> {
-    match scope {
-        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.default_preset)),
-        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.default_preset)),
-        Scope::Auto => {
-            // Check project first, then fall back to user
-            if let Some(project_settings) = load_settings(Scope::Project)?
-                && let Some(default) = project_settings.default_preset
-            {
-                return Ok(Some(default));
-            }
-
-            // No project settings file exists, or project settings has no default_preset
-            Ok(load_settings(Scope::User)?.and_then(|s| s.default_preset))
-        }
-    }
+    resolve_scoped_setting(scope, |s| s.default_preset.clone())
 }
 
 /// Try to load an inline preset from settings
@@ -196,54 +211,21 @@ pub fn load_inline_presets_scoped(
 ///
 /// For `Scope::Auto`: project settings take precedence over user settings
 pub fn resolve_color(scope: Scope) -> Result<Option<String>> {
-    match scope {
-        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.color)),
-        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.color)),
-        Scope::Auto => {
-            if let Some(project_settings) = load_settings(Scope::Project)?
-                && let Some(color) = project_settings.color
-            {
-                return Ok(Some(color));
-            }
-            Ok(load_settings(Scope::User)?.and_then(|s| s.color))
-        }
-    }
+    resolve_scoped_setting(scope, |s| s.color.clone())
 }
 
 /// Resolve the no_color setting considering scope precedence
 ///
 /// For `Scope::Auto`: project settings take precedence over user settings
 pub fn resolve_no_color(scope: Scope) -> Result<Option<bool>> {
-    match scope {
-        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.no_color)),
-        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.no_color)),
-        Scope::Auto => {
-            if let Some(project_settings) = load_settings(Scope::Project)?
-                && let Some(no_color) = project_settings.no_color
-            {
-                return Ok(Some(no_color));
-            }
-            Ok(load_settings(Scope::User)?.and_then(|s| s.no_color))
-        }
-    }
+    resolve_scoped_setting(scope, |s| s.no_color)
 }
 
 /// Resolve the require_preset setting considering scope precedence
 ///
 /// For `Scope::Auto`: project settings take precedence over user settings
 pub fn resolve_require_preset(scope: Scope) -> Result<Option<bool>> {
-    match scope {
-        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.require_preset)),
-        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.require_preset)),
-        Scope::Auto => {
-            if let Some(project_settings) = load_settings(Scope::Project)?
-                && let Some(require_preset) = project_settings.require_preset
-            {
-                return Ok(Some(require_preset));
-            }
-            Ok(load_settings(Scope::User)?.and_then(|s| s.require_preset))
-        }
-    }
+    resolve_scoped_setting(scope, |s| s.require_preset)
 }
 
 /// Check if user presets should be ignored (only honored from project settings)
@@ -260,36 +242,14 @@ pub fn should_ignore_user_presets() -> Result<bool> {
 ///
 /// For `Scope::Auto`: project settings take precedence over user settings
 pub fn resolve_dry_run_show_env(scope: Scope) -> Result<Option<bool>> {
-    match scope {
-        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.dry_run_show_env)),
-        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.dry_run_show_env)),
-        Scope::Auto => {
-            if let Some(project_settings) = load_settings(Scope::Project)?
-                && let Some(show_env) = project_settings.dry_run_show_env
-            {
-                return Ok(Some(show_env));
-            }
-            Ok(load_settings(Scope::User)?.and_then(|s| s.dry_run_show_env))
-        }
-    }
+    resolve_scoped_setting(scope, |s| s.dry_run_show_env)
 }
 
 /// Resolve the claude_executable setting considering scope precedence
 ///
 /// For `Scope::Auto`: project settings take precedence over user settings
 pub fn resolve_claude_executable(scope: Scope) -> Result<Option<String>> {
-    match scope {
-        Scope::Project => Ok(load_settings(Scope::Project)?.and_then(|s| s.claude_executable)),
-        Scope::User => Ok(load_settings(Scope::User)?.and_then(|s| s.claude_executable)),
-        Scope::Auto => {
-            if let Some(project_settings) = load_settings(Scope::Project)?
-                && let Some(executable) = project_settings.claude_executable
-            {
-                return Ok(Some(executable));
-            }
-            Ok(load_settings(Scope::User)?.and_then(|s| s.claude_executable))
-        }
-    }
+    resolve_scoped_setting(scope, |s| s.claude_executable.clone())
 }
 
 fn get_user_settings_path() -> Result<PathBuf> {
