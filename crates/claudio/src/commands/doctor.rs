@@ -450,24 +450,35 @@ fn check_environment_variables(report: &mut DoctorReport, scope: Scope, verbose:
 
 /// Extract missing environment variable references from a string containing ${VAR_NAME} patterns
 fn extract_missing_vars(s: &str, missing_vars: &mut Vec<String>) {
-    let chars: Vec<char> = s.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] == '$' && i + 1 < chars.len() && chars[i + 1] == '{' {
-            i += 2; // skip ${
-            let mut var_name = String::new();
-            while i < chars.len() && chars[i] != '}' {
-                var_name.push(chars[i]);
-                i += 1;
-            }
-            if !var_name.is_empty()
-                && std::env::var(&var_name).is_err()
-                && !missing_vars.contains(&var_name)
-            {
-                missing_vars.push(var_name);
-            }
+    let mut iter = s.chars().peekable();
+    while let Some(c) = iter.next() {
+        if c != '$' {
+            continue;
         }
-        i += 1;
+
+        if iter.peek().copied() != Some('{') {
+            continue;
+        }
+
+        // consume '{'
+        iter.next();
+
+        let mut var_name = String::new();
+        while let Some(&ch) = iter.peek() {
+            if ch == '}' {
+                iter.next();
+                break;
+            }
+            var_name.push(ch);
+            iter.next();
+        }
+
+        if !var_name.is_empty()
+            && std::env::var(&var_name).is_err()
+            && !missing_vars.contains(&var_name)
+        {
+            missing_vars.push(var_name);
+        }
     }
 }
 
