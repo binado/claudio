@@ -6,6 +6,8 @@ use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
 use serde::Serialize;
 use serde_json::json;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::process::Command;
 
 #[derive(Debug, Clone, Serialize)]
@@ -297,12 +299,18 @@ fn check_preset_validity(report: &mut DoctorReport, scope: Scope) {
                                     }
                                 }
                                 Err(e) => {
-                                    let preset_name = path
-                                        .file_stem()
-                                        .and_then(|s| s.to_str())
-                                        .unwrap_or("unknown");
+                                    let path_lossy = path.to_string_lossy();
+                                    let mut hasher = DefaultHasher::new();
+                                    path_lossy.hash(&mut hasher);
+                                    let path_hash = format!("{:016x}", hasher.finish());
+
+                                    let identifier = match path.file_stem().and_then(|s| s.to_str())
+                                    {
+                                        Some(stem) => format!("{}_{}", stem, path_hash),
+                                        None => path_hash,
+                                    };
                                     report.add_check(CheckResult {
-                                        name: format!("preset_parse_{}", preset_name),
+                                        name: format!("preset_parse_{}", identifier),
                                         status: "fail".to_string(),
                                         message: format!("Failed to parse preset file: {}", e),
                                         details: Some(json!({"path": path.display().to_string()})),
