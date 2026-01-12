@@ -223,9 +223,9 @@ pub fn list(
             table.add_row(row);
         }
 
-        // Print table with trimmed lines (removes leading whitespace from NOTHING preset)
+        // Print table lines
         for line in table.lines() {
-            println!("{}", line.trim());
+            println!("{}", line);
         }
         println!();
     }
@@ -293,7 +293,7 @@ pub fn list(
         }
 
         for line in table.lines() {
-            println!("{}", line.trim());
+            println!("{}", line);
         }
         println!();
     }
