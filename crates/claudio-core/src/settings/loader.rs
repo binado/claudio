@@ -18,10 +18,10 @@ pub fn get_settings_path(scope: Scope) -> Result<PathBuf> {
         Scope::Auto => {
             // For Auto scope, we prefer project if one can be detected (matching preset behavior).
             // The caller is responsible for checking if the file exists.
-            if let Some(project_path) = get_project_settings_path() {
-                return Ok(project_path);
+            match get_project_settings_path() {
+                Some(project_path) => Ok(project_path),
+                None => get_user_settings_path(),
             }
-            Ok(get_user_settings_path()?)
         }
     }
 }
