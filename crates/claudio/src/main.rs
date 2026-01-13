@@ -25,7 +25,7 @@ fn main() -> ExitCode {
     // Determine the scope for settings lookup (default to Auto for global settings)
     let settings_scope = match &cli.command {
         Some(Commands::Run(args)) => args.scope.scope,
-        Some(Commands::Init { scope }) => scope.scope,
+        Some(Commands::Init { scope, .. }) => scope.scope,
         Some(Commands::Doctor { scope, .. }) => scope.scope,
         Some(Commands::Preset { command }) => match command {
             PresetCommands::List { scope, .. }
@@ -97,8 +97,19 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
             // Explicit: claudio run my-preset
             execute_run_command(args, &color_config, args.claude_executable.as_deref())?
         }
-        Some(Commands::Init { scope }) => {
-            crate::commands::init::init(scope.scope.into())?;
+        Some(Commands::Init {
+            scope,
+            dry_run,
+            verbose,
+            force,
+        }) => {
+            crate::commands::init::init(
+                scope.scope.into(),
+                *dry_run,
+                *verbose,
+                *force,
+                &color_config,
+            )?;
             ExitCode::SUCCESS
         }
         Some(Commands::Doctor {

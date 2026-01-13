@@ -556,3 +556,149 @@ fn test_doctor_command_fails_when_executable_missing() {
         stdout
     );
 }
+
+#[test]
+#[serial]
+fn test_init_dry_run_does_not_create_files() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // Run init with --dry-run
+    let output = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project", "--dry-run"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Init --dry-run failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify no files were created
+    assert!(!env.project_dir.join(".claudio").exists());
+
+    // Verify dry-run message is shown
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("dry-run") || stderr.contains("Would create"),
+        "Expected dry-run message in stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+#[serial]
+fn test_init_reinitialize_shows_existing_items() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // First init
+    let output1 = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+    assert!(output1.status.success());
+
+    // Second init
+    let output2 = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+    assert!(output2.status.success());
+
+    // Verify message indicates already initialized
+    let stderr = String::from_utf8_lossy(&output2.stderr);
+    assert!(
+        stderr.contains("Already initialized") || stderr.contains("exists"),
+        "Expected 'Already initialized' message: {}",
+        stderr
+    );
+}
+
+#[test]
+#[serial]
+fn test_init_verbose_shows_project_root() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // Run init with --verbose
+    let output = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project", "--verbose"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Init --verbose failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify verbose output is shown
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Project root") || stderr.contains("Initializing"),
+        "Expected verbose output: {}",
+        stderr
+    );
+}
+
+#[test]
+#[serial]
+fn test_init_force_creates_backup() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // First init
+    run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+
+    // Corrupt the settings file
+    let settings_path = env.project_dir.join(".claudio").join("settings.json");
+    std::fs::write(&settings_path, r#"{"corrupted": true}"#).unwrap();
+
+    // Run init with --force
+    let output = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project", "--force"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Init --force failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify backup was created
+    let backup_path = env
+        .project_dir
+        .join(".claudio")
+        .join("settings.json.backup");
+    assert!(
+        backup_path.exists(),
+        "Backup file should exist at: {}",
+        backup_path.display()
+    );
+
+    // Verify backup contains corrupted data
+    let backup_content = std::fs::read_to_string(&backup_path).unwrap();
+    assert!(
+        backup_content.contains("corrupted"),
+        "Backup should contain original corrupted data"
+    );
+
+    // Verify settings.json was restored with valid JSON
+    let settings_content = std::fs::read_to_string(&settings_path).unwrap();
+    assert!(
+        serde_json::from_str::<serde_json::Value>(&settings_content).is_ok(),
+        "Restored settings should be valid JSON"
+    );
+}
