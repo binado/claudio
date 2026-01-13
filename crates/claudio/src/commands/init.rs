@@ -20,7 +20,7 @@ struct InitStatus {
 pub fn init(
     scope: Scope,
     dry_run: bool,
-    verbose: bool,
+    quiet: bool,
     force: bool,
     color_config: &ColorConfig,
 ) -> Result<()> {
@@ -53,21 +53,16 @@ pub fn init(
         Scope::User => "user",
     };
 
-    eprintln!(
-        "Initializing claudio in {} scope{}",
-        color_config.highlight(scope_name),
-        if scope_name == "project" {
-            " (git repository detected)"
-        } else {
-            ""
-        }
-    );
-
-    if verbose
-        && scope_name == "project"
-        && let Some(root) = claudio_core::paths::find_project_root(None)
-    {
-        eprintln!("  Project root: {}", root.display());
+    if !quiet {
+        eprintln!(
+            "Initializing claudio in {} scope{}",
+            color_config.highlight(scope_name),
+            if scope_name == "project" {
+                " (git repository detected)"
+            } else {
+                ""
+            }
+        );
     }
 
     // Handle preset directory
@@ -76,15 +71,19 @@ pub fn init(
 
     if preset_dir_exists {
         status.preset_dir_existed = true;
-        eprintln!(
-            "  • Directory exists: {}",
-            color_config.highlight(preset_dir.file_name().unwrap().to_string_lossy().as_ref())
-        );
+        if !quiet {
+            eprintln!(
+                "  • Directory exists: {}",
+                color_config.highlight(preset_dir.file_name().unwrap().to_string_lossy().as_ref())
+            );
+        }
     } else if dry_run {
-        eprintln!(
-            "  ? Would create: {}",
-            color_config.highlight(preset_dir.file_name().unwrap().to_string_lossy().as_ref())
-        );
+        if !quiet {
+            eprintln!(
+                "  ? Would create: {}",
+                color_config.highlight(preset_dir.file_name().unwrap().to_string_lossy().as_ref())
+            );
+        }
     } else {
         std::fs::create_dir_all(&preset_dir).with_context(|| {
             format!(
@@ -93,10 +92,12 @@ pub fn init(
             )
         })?;
         status.preset_dir_created = true;
-        eprintln!(
-            "  ✓ Created directory: {}",
-            color_config.highlight(preset_dir.file_name().unwrap().to_string_lossy().as_ref())
-        );
+        if !quiet {
+            eprintln!(
+                "  ✓ Created directory: {}",
+                color_config.highlight(preset_dir.file_name().unwrap().to_string_lossy().as_ref())
+            );
+        }
     }
 
     // Handle settings file
@@ -119,11 +120,13 @@ pub fn init(
         status.settings_backed_up = true;
         status.backup_path = Some(backup_path);
 
-        eprintln!(
-            "  ⟳ Backed up:       {} → {}",
-            color_config.highlight("settings.json"),
-            color_config.highlight("settings.json.backup")
-        );
+        if !quiet {
+            eprintln!(
+                "  ⟳ Backed up:       {} → {}",
+                color_config.highlight("settings.json"),
+                color_config.highlight("settings.json.backup")
+            );
+        }
 
         // Write new settings
         if let Some(parent) = settings_path.parent() {
@@ -141,21 +144,27 @@ pub fn init(
         })?;
 
         status.settings_created = true;
-        eprintln!(
-            "  ✓ Created settings: {}",
-            color_config.highlight("settings.json")
-        );
+        if !quiet {
+            eprintln!(
+                "  ✓ Created settings: {}",
+                color_config.highlight("settings.json")
+            );
+        }
     } else if settings_exists {
         status.settings_existed = true;
-        eprintln!(
-            "  • Settings exist:   {}",
-            color_config.highlight("settings.json")
-        );
+        if !quiet {
+            eprintln!(
+                "  • Settings exist:   {}",
+                color_config.highlight("settings.json")
+            );
+        }
     } else if dry_run {
-        eprintln!(
-            "  ? Would create: {}",
-            color_config.highlight("settings.json")
-        );
+        if !quiet {
+            eprintln!(
+                "  ? Would create: {}",
+                color_config.highlight("settings.json")
+            );
+        }
     } else {
         // Create settings file
         if let Some(parent) = settings_path.parent() {
@@ -173,40 +182,44 @@ pub fn init(
         })?;
 
         status.settings_created = true;
-        eprintln!(
-            "  ✓ Created settings: {}",
-            color_config.highlight("settings.json")
-        );
+        if !quiet {
+            eprintln!(
+                "  ✓ Created settings: {}",
+                color_config.highlight("settings.json")
+            );
+        }
     }
 
     // Print summary
-    eprintln!();
-    if dry_run {
-        eprintln!("(Dry-run mode: no changes made)");
-    } else if status.settings_created || status.preset_dir_created {
-        eprintln!("Initialization complete!");
-        if !status.settings_existed && !status.preset_dir_existed {
+    if !quiet {
+        eprintln!();
+        if dry_run {
+            eprintln!("(Dry-run mode: no changes made)");
+        } else if status.settings_created || status.preset_dir_created {
+            eprintln!("Initialization complete!");
+            if !status.settings_existed && !status.preset_dir_existed {
+                eprintln!();
+                eprintln!("Next steps:");
+                eprintln!(
+                    "  • Create your first preset: {}",
+                    color_config.highlight("claudio preset add my-preset")
+                );
+                eprintln!(
+                    "  • List available presets:  {}",
+                    color_config.highlight("claudio preset list")
+                );
+            }
+        } else {
+            eprintln!("Already initialized. No changes made.");
+        }
+
+        if let Some(backup_path) = &status.backup_path {
             eprintln!();
-            eprintln!("Next steps:");
             eprintln!(
-                "  • Create your first preset: {}",
-                color_config.highlight("claudio preset add my-preset")
-            );
-            eprintln!(
-                "  • List available presets:  {}",
-                color_config.highlight("claudio preset list")
+                "Settings file backed up to: {}",
+                color_config.highlight(backup_path.to_string_lossy().as_ref())
             );
         }
-    } else {
-        eprintln!("Already initialized. No changes made.");
-    }
-
-    if let Some(backup_path) = &status.backup_path {
-        eprintln!();
-        eprintln!(
-            "Settings file backed up to: {}",
-            color_config.highlight(backup_path.to_string_lossy().as_ref())
-        );
     }
 
     Ok(())

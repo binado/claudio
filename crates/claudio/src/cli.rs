@@ -88,9 +88,9 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
 
-        /// Show detailed initialization information
-        #[arg(long, short)]
-        verbose: bool,
+        /// Suppress output (only show errors)
+        #[arg(long, short = 'q')]
+        quiet: bool,
 
         /// Force re-initialization (backup existing settings)
         #[arg(long)]

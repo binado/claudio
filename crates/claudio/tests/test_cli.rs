@@ -621,30 +621,66 @@ fn test_init_reinitialize_shows_existing_items() {
 
 #[test]
 #[serial]
-fn test_init_verbose_shows_project_root() {
+fn test_init_quiet_suppresses_output() {
     let env = TestEnvironment::new();
     std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
 
-    // Run init with --verbose
+    // Run init with --quiet
     let output = run_claudio(
         &env.project_dir,
-        &["init", "--scope", "project", "--verbose"],
+        &["init", "--scope", "project", "--quiet"],
         &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
     );
 
     assert!(
         output.status.success(),
-        "Init --verbose failed\nstderr:\n{}",
+        "Init --quiet failed\nstderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // Verify verbose output is shown
+    // Verify output is suppressed
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Project root") || stderr.contains("Initializing"),
-        "Expected verbose output: {}",
+        stderr.is_empty() || !stderr.contains("Initializing"),
+        "Expected quiet output, got: {}",
         stderr
     );
+
+    // Verify files were still created
+    assert!(env.project_dir.join(".claudio").exists());
+    assert!(env.project_dir.join(".claudio/presets").exists());
+    assert!(env.project_dir.join(".claudio/settings.json").exists());
+}
+
+#[test]
+#[serial]
+fn test_init_quiet_dry_run() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // Run init with --quiet and --dry-run
+    let output = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project", "--quiet", "--dry-run"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Init --quiet --dry-run failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify output is suppressed
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.is_empty() || stderr.trim().is_empty(),
+        "Expected completely silent output, got: {}",
+        stderr
+    );
+
+    // Verify nothing was created
+    assert!(!env.project_dir.join(".claudio").exists());
 }
 
 #[test]

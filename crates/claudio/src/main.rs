@@ -100,13 +100,13 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
         Some(Commands::Init {
             scope,
             dry_run,
-            verbose,
+            quiet,
             force,
         }) => {
             crate::commands::init::init(
                 scope.scope.into(),
                 *dry_run,
-                *verbose,
+                *quiet,
                 *force,
                 &color_config,
             )?;
