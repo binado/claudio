@@ -1,11 +1,9 @@
 use crate::env;
-use crate::preset::resolve::command::execute_command;
-use crate::preset::resolve::paths::resolve_file_path;
+use crate::preset::resolve::command::{ResolverConfig, execute_command};
+use crate::preset::resolve::paths::resolve_file_path_for_source;
 use crate::preset::types::{EnvValue, EnvValueSource, Preset, PresetSource};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
-
-use super::command::ResolverConfig;
 
 /// Resolve environment variables for a preset.
 ///
@@ -41,7 +39,7 @@ fn resolve_env_value(
             EnvValueSource::Value { value } => Ok(value.clone()),
             EnvValueSource::Env { var } => env::get_required_env_var(var),
             EnvValueSource::File { path } => {
-                let resolved_path = resolve_file_path(path, source)?;
+                let resolved_path = resolve_file_path_for_source(path, source)?;
                 let content = std::fs::read_to_string(&resolved_path)
                     .with_context(|| format!("Failed to read file: {}", resolved_path.display()))?;
                 Ok(content.trim_end().to_string())

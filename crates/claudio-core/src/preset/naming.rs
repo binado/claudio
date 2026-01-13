@@ -1,68 +1,53 @@
 use std::path::PathBuf;
 
+/// Check if a preset name is safe to use as a direct filename (legacy behavior).
+///
+/// Returns false for names that could cause path traversal or filesystem issues.
 pub(crate) fn is_legacy_filename_safe(name: &str) -> bool {
-    // Legacy behavior used `<name>.json` directly.
-    // Only allow that mapping when it cannot traverse directories.
-    if name.is_empty() {
-        return false;
-    }
-    if name.contains('\0') {
-        return false;
-    }
-    if name.contains('/') || name.contains('\\') {
-        return false;
-    }
-    // Avoid special path components.
-    if name == "." || name == ".." {
-        return false;
-    }
-    true
+    !name.is_empty()
+        && !name.contains('\0')
+        && !name.contains('/')
+        && !name.contains('\\')
+        && name != "."
+        && name != ".."
 }
 
+/// Percent-encode a preset name into a filesystem-safe filename stem.
+///
+/// Uses RFC3986 "unreserved" characters (ALPHA / DIGIT / "-" / "." / "_" / "~") as-is.
+/// Everything else is escaped as `%XX` (uppercase hex).
 pub(crate) fn preset_filename_stem_for_name(name: &str) -> String {
-    // Percent-encode UTF-8 bytes into a filesystem-safe filename stem.
-    // We leave RFC3986 "unreserved" bytes as-is: ALPHA / DIGIT / "-" / "." / "_" / "~".
-    // Everything else is escaped as `%XX` (uppercase hex).
-    //
-    // This is deterministic and avoids path traversal even when names contain `/`.
-    let bytes = name.as_bytes();
-    let mut out = String::with_capacity(bytes.len());
+    fn is_unreserved(b: u8) -> bool {
+        matches!(b, b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~')
+    }
 
-    for &b in bytes {
-        let unreserved = matches!(
-            b,
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~'
-        );
+    fn encode_byte(b: u8) -> [char; 3] {
+        let high = char::from_digit((b >> 4) as u32, 16)
+            .unwrap()
+            .to_ascii_uppercase();
+        let low = char::from_digit((b & 0x0F) as u32, 16)
+            .unwrap()
+            .to_ascii_uppercase();
+        ['%', high, low]
+    }
 
-        if unreserved {
+    let mut out = String::with_capacity(name.len());
+
+    for &b in name.as_bytes() {
+        if is_unreserved(b) {
             out.push(b as char);
         } else {
-            out.push('%');
-            out.push(
-                char::from_digit((b >> 4) as u32, 16)
-                    .unwrap()
-                    .to_ascii_uppercase(),
-            );
-            out.push(
-                char::from_digit((b & 0x0F) as u32, 16)
-                    .unwrap()
-                    .to_ascii_uppercase(),
-            );
+            out.extend(encode_byte(b));
         }
     }
 
-    // Avoid empty stems and special path components.
-    if out.is_empty() {
-        return "%00".to_string();
+    // Handle special cases that could cause filesystem issues
+    match out.as_str() {
+        "" => "%00".to_string(),
+        "." => "%2E".to_string(),
+        ".." => "%2E%2E".to_string(),
+        _ => out,
     }
-    if out == "." {
-        return "%2E".to_string();
-    }
-    if out == ".." {
-        return "%2E%2E".to_string();
-    }
-
-    out
 }
 
 pub(crate) fn preset_path_for_name_encoded(dir: &std::path::Path, name: &str) -> PathBuf {

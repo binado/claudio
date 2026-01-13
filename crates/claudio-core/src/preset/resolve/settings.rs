@@ -1,59 +1,59 @@
 use crate::env;
 use anyhow::Result;
+use serde_json::Value;
 
-pub fn resolve_settings_variables(settings: &serde_json::Value) -> Result<serde_json::Value> {
-    match settings {
-        serde_json::Value::Object(obj) => {
-            let mut resolved_map = serde_json::Map::new();
-            for (key, value) in obj {
-                resolved_map.insert(key.clone(), resolve_settings_value(value)?);
-            }
-            Ok(serde_json::Value::Object(resolved_map))
-        }
-        other => Ok(resolve_settings_value(other)?),
-    }
+/// Recursively resolve `${VAR}` references in a JSON settings value.
+pub fn resolve_settings_variables(settings: &Value) -> Result<Value> {
+    resolve_value_recursive(settings)
 }
 
-pub(crate) fn resolve_settings_value(value: &serde_json::Value) -> Result<serde_json::Value> {
+/// Internal recursive resolver for JSON values.
+///
+/// Exposed for fine-grained testing. Production code should use `resolve_settings_variables`.
+#[cfg(test)]
+pub(crate) fn resolve_settings_value(value: &Value) -> Result<Value> {
+    resolve_value_recursive(value)
+}
+
+fn resolve_value_recursive(value: &Value) -> Result<Value> {
     match value {
-        serde_json::Value::String(s) => Ok(serde_json::Value::String(env::substitute_env_vars(s)?)),
-        serde_json::Value::Array(arr) => {
-            let resolved: Result<Vec<_>> = arr.iter().map(resolve_settings_value).collect();
-            Ok(serde_json::Value::Array(resolved?))
-        }
-        serde_json::Value::Object(obj) => {
-            let mut resolved_map = serde_json::Map::new();
-            for (key, val) in obj {
-                resolved_map.insert(key.clone(), resolve_settings_value(val)?);
-            }
-            Ok(serde_json::Value::Object(resolved_map))
-        }
+        Value::String(s) => Ok(Value::String(env::substitute_env_vars(s)?)),
+        Value::Array(arr) => arr
+            .iter()
+            .map(resolve_value_recursive)
+            .collect::<Result<Vec<_>>>()
+            .map(Value::Array),
+        Value::Object(obj) => obj
+            .iter()
+            .map(|(k, v)| resolve_value_recursive(v).map(|resolved| (k.clone(), resolved)))
+            .collect::<Result<serde_json::Map<_, _>>>()
+            .map(Value::Object),
         other => Ok(other.clone()),
     }
 }
 
-pub(crate) fn merge_json_settings(
-    base: Option<serde_json::Value>,
-    derived: Option<serde_json::Value>,
-) -> Option<serde_json::Value> {
+/// Deep merge two JSON settings objects.
+///
+/// - Objects are recursively merged (derived keys override base keys)
+/// - Non-object values: derived takes precedence over base
+/// - None values are treated as "no value" (the other side wins)
+pub(crate) fn merge_json_settings(base: Option<Value>, derived: Option<Value>) -> Option<Value> {
     match (base, derived) {
-        (
-            Some(serde_json::Value::Object(mut base_obj)),
-            Some(serde_json::Value::Object(derived_obj)),
-        ) => {
-            for (key, value) in derived_obj {
-                let merged_value = if let Some(base_value) = base_obj.get(&key) {
-                    merge_json_settings(Some(base_value.clone()), Some(value.clone()))
-                        .unwrap_or(value)
-                } else {
-                    value
+        (Some(Value::Object(mut base_obj)), Some(Value::Object(derived_obj))) => {
+            for (key, derived_value) in derived_obj {
+                let merged = match base_obj.get(&key) {
+                    Some(base_value) => {
+                        merge_json_settings(Some(base_value.clone()), Some(derived_value.clone()))
+                            .unwrap_or(derived_value)
+                    }
+                    None => derived_value,
                 };
-                base_obj.insert(key, merged_value);
+                base_obj.insert(key, merged);
             }
-            Some(serde_json::Value::Object(base_obj))
+            Some(Value::Object(base_obj))
         }
         (None, derived) => derived,
-        (_base, Some(derived)) => Some(derived),
         (base, None) => base,
+        (_, Some(derived)) => Some(derived),
     }
 }
