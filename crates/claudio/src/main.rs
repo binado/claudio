@@ -136,13 +136,7 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                 resolved,
                 json,
             } => {
-                crate::commands::show::show(
-                    preset,
-                    scope.scope.into(),
-                    *resolved,
-                    *json,
-                    cli.run_args.claude_executable.as_deref(),
-                )?;
+                crate::commands::show::show(preset, scope.scope.into(), *resolved, *json)?;
                 ExitCode::SUCCESS
             }
             PresetCommands::Edit { preset, scope } => {

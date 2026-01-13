@@ -5,17 +5,11 @@ use claudio_core::preset::store::PresetStore;
 use claudio_core::preset::types::PresetSource;
 use claudio_core::scope::Scope;
 
-pub fn show(
-    preset_name: &str,
-    scope: Scope,
-    resolved: bool,
-    json_only: bool,
-    claude_executable_cli: Option<&str>,
-) -> Result<()> {
+pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) -> Result<()> {
     let effective_scope = effective_read_scope(scope);
 
-    let claude_executable =
-        crate::commands::util::resolve_claude_executable(claude_executable_cli, effective_scope);
+    // Resolve claude executable for display purposes only (not executing)
+    let claude_executable = crate::commands::util::resolve_claude_executable(None, effective_scope);
 
     // Create a PresetStore for scope-aware lookups
     let store = PresetStore::new(effective_scope)?;
