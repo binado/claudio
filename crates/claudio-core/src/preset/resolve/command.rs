@@ -77,7 +77,9 @@ Provide a ConfirmCommand implementation (CLI) or set 'skip_command_confirmation'
         );
     }
 
-    Ok(String::from_utf8(output.stdout)?.trim_end().to_string())
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .trim_end()
+        .to_string())
 }
 
 fn should_confirm_command(confirm: Option<bool>, cfg: &ResolverConfig<'_>) -> bool {
