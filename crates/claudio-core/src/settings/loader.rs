@@ -8,17 +8,17 @@ use std::path::PathBuf;
 ///
 /// - Project: `<project-root>/.claudio/settings.json`
 /// - User: `~/.claudio/settings.json`
-/// - Auto: Prefer project if it exists, otherwise user
+/// - Auto: Prefer project if detected in a git repo, otherwise user
+///   (Note: The returned path may not exist; caller is responsible for checking)
 pub fn get_settings_path(scope: Scope) -> Result<PathBuf> {
     match scope {
         Scope::Project => get_project_settings_path()
             .ok_or_else(|| anyhow::anyhow!("Failed to determine project root")),
         Scope::User => Ok(get_user_settings_path()?),
         Scope::Auto => {
-            // For Auto scope, we prefer project if it exists
-            if let Some(project_path) = get_project_settings_path()
-                && project_path.exists()
-            {
+            // For Auto scope, we prefer project if one can be detected (matching preset behavior).
+            // The caller is responsible for checking if the file exists.
+            if let Some(project_path) = get_project_settings_path() {
                 return Ok(project_path);
             }
             Ok(get_user_settings_path()?)
