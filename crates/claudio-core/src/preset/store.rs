@@ -3,8 +3,8 @@
 //! `PresetStore` is the single point of entry for all preset lookups.
 //! It respects scope, and handles both inline and file-based presets.
 
-use crate::preset::loader;
 use crate::preset::types::{Preset, PresetSource};
+use crate::preset::{dirs, discovery, io, naming};
 use crate::scope::Scope;
 use anyhow::{Context, Result};
 use std::path::PathBuf;
@@ -36,7 +36,7 @@ impl PresetStore {
     /// - `Scope::Project`: project only
     /// - `Scope::User`: user only
     pub fn new(scope: Scope) -> Result<Self> {
-        let search_dirs = loader::get_preset_dirs_scoped(scope)?;
+        let search_dirs = dirs::get_preset_dirs_scoped(scope)?;
         Ok(Self { scope, search_dirs })
     }
 
@@ -67,9 +67,9 @@ impl PresetStore {
 
         // Then try file-based preset
         for dir in &self.search_dirs {
-            for path in loader::candidate_preset_paths_for_name(dir, name) {
+            for path in naming::candidate_preset_paths_for_name(dir, name) {
                 if path.exists() {
-                    let preset = loader::load_preset(&path)?;
+                    let preset = io::load_preset(&path)?;
                     return Ok(Some(LocatedPreset {
                         preset,
                         source: PresetSource::File(path),
@@ -93,21 +93,21 @@ impl PresetStore {
     /// Returns the path in the write directory for this scope.
     pub fn path_for_name(&self, name: &str) -> Result<PathBuf> {
         let write_dir = self.write_dir()?;
-        Ok(loader::preset_path_for_name(&write_dir, name))
+        Ok(naming::preset_path_for_name(&write_dir, name))
     }
 
     /// Get write directory for this scope.
     ///
     /// This is where new presets should be created/edited.
     pub fn write_dir(&self) -> Result<PathBuf> {
-        loader::get_preset_write_dir_scoped(self.scope)
+        dirs::get_preset_write_dir_scoped(self.scope)
     }
 
     /// Discover all preset paths in scope.
     ///
     /// Returns paths to all .json files in the search directories.
     pub fn discover_all(&self) -> Result<Vec<PathBuf>> {
-        loader::discover_presets_scoped(self.scope)
+        discovery::discover_presets_scoped(self.scope)
     }
 
     /// Generate a "not found" error message with helpful context.
@@ -129,6 +129,7 @@ impl PresetStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::env::CLAUDIO_HOME_DIR_ENV_VAR;
     use serial_test::serial;
     use std::fs;
     use tempfile::TempDir;
@@ -137,14 +138,14 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let home_path = temp_dir.path().to_string_lossy().to_string();
         unsafe {
-            std::env::set_var("CLAUDIO_HOME_DIR", &home_path);
+            std::env::set_var(CLAUDIO_HOME_DIR_ENV_VAR, &home_path);
         }
         (temp_dir, home_path)
     }
 
     fn cleanup_test_env() {
         unsafe {
-            std::env::remove_var("CLAUDIO_HOME_DIR");
+            std::env::remove_var(CLAUDIO_HOME_DIR_ENV_VAR);
         }
     }
 

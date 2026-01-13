@@ -13,8 +13,7 @@ pub mod util;
 use anyhow::Result;
 use std::io::{self, Write};
 
-use claudio_core::preset::resolver::ResolverConfig;
-use claudio_core::preset::resolver::{ConfirmCommand, ConfirmCommandRequest};
+use claudio_core::preset::resolve::{ConfirmCommand, ConfirmCommandRequest, ResolverConfig};
 use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
 

@@ -1,4 +1,4 @@
-use crate::preset::loader;
+use crate::preset::lookup;
 use crate::preset::types::Preset;
 use crate::scope::Scope;
 use anyhow::Result;
@@ -54,7 +54,7 @@ impl Settings {
     pub fn validate(&self, scope: Scope) -> Result<()> {
         // Check for name collisions between inline presets and file presets
         for preset in &self.presets {
-            if let Ok(file_path) = loader::find_preset_scoped(&preset.name, scope) {
+            if let Ok(file_path) = lookup::find_preset_scoped(&preset.name, scope) {
                 anyhow::bail!(
                     "Inline preset '{}' conflicts with a file-based preset.\n\n\
                      Choose a different name or remove the file preset at:\n  {}",

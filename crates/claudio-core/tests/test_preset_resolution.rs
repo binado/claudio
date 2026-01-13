@@ -1,9 +1,9 @@
 mod common;
 
-use claudio_core::preset::loader;
-use claudio_core::preset::resolver::{self, ResolverConfig};
+use claudio_core::preset::resolve::{self, ResolverConfig};
 use claudio_core::preset::store::PresetStore;
 use claudio_core::preset::types::PresetSource;
+use claudio_core::preset::{io, lookup};
 use claudio_core::scope::Scope;
 use common::TestEnvironment;
 
@@ -51,10 +51,10 @@ fn test_variable_substitution_in_env() {
     );
 
     // Load and resolve preset
-    let path = loader::find_preset_scoped("test-preset", Scope::Project).unwrap();
-    let preset = loader::load_preset(&path).unwrap();
+    let path = lookup::find_preset_scoped("test-preset", Scope::Project).unwrap();
+    let preset = io::load_preset(&path).unwrap();
 
-    let resolved = resolver::resolve_variables_with_source(
+    let resolved = resolve::resolve_variables_with_source(
         &preset,
         &PresetSource::File(path),
         &ResolverConfig::default(),
@@ -100,10 +100,10 @@ fn test_missing_environment_variable() {
     );
 
     // Load and attempt to resolve preset
-    let path = loader::find_preset_scoped("test-preset", Scope::Project).unwrap();
-    let preset = loader::load_preset(&path).unwrap();
+    let path = lookup::find_preset_scoped("test-preset", Scope::Project).unwrap();
+    let preset = io::load_preset(&path).unwrap();
 
-    let result = resolver::resolve_variables_with_source(
+    let result = resolve::resolve_variables_with_source(
         &preset,
         &PresetSource::File(path),
         &ResolverConfig::default(),
@@ -156,7 +156,7 @@ fn test_inheritance_resolution() {
     let located = store.find_required("derived").unwrap();
 
     // Resolve inheritance
-    let resolved = resolver::resolve_inheritance_with_store(
+    let resolved = resolve::resolve_inheritance_with_store(
         &located.preset,
         located.source,
         &store,
@@ -211,7 +211,7 @@ fn test_circular_inheritance_detection() {
 
     let store = PresetStore::new(Scope::Project).unwrap();
     let located = store.find_required("preset-a").unwrap();
-    let result = resolver::resolve_inheritance_with_store(
+    let result = resolve::resolve_inheritance_with_store(
         &located.preset,
         located.source,
         &store,
@@ -244,7 +244,7 @@ fn test_self_referencing_extends() {
 
     let store = PresetStore::new(Scope::Project).unwrap();
     let located = store.find_required("self-ref").unwrap();
-    let result = resolver::resolve_inheritance_with_store(
+    let result = resolve::resolve_inheritance_with_store(
         &located.preset,
         located.source,
         &store,
@@ -289,10 +289,10 @@ fn test_complex_variable_substitution() {
     );
 
     // Load and resolve
-    let path = loader::find_preset_scoped("test-preset", Scope::Project).unwrap();
-    let preset = loader::load_preset(&path).unwrap();
+    let path = lookup::find_preset_scoped("test-preset", Scope::Project).unwrap();
+    let preset = io::load_preset(&path).unwrap();
 
-    let resolved = resolver::resolve_variables_with_source(
+    let resolved = resolve::resolve_variables_with_source(
         &preset,
         &PresetSource::File(path),
         &ResolverConfig::default(),
@@ -336,8 +336,8 @@ fn test_resolved_preset_includes_settings() {
     );
 
     // Load preset
-    let path = loader::find_preset_scoped("test-preset", Scope::Project).unwrap();
-    let preset = loader::load_preset(&path).unwrap();
+    let path = lookup::find_preset_scoped("test-preset", Scope::Project).unwrap();
+    let preset = io::load_preset(&path).unwrap();
 
     // Settings should be preserved
     assert!(preset.settings.is_some());
@@ -375,7 +375,7 @@ fn test_missing_required_field() {
         .join(".claudio")
         .join("presets")
         .join("invalid.json");
-    let result = loader::load_preset(&path);
+    let result = io::load_preset(&path);
     assert!(result.is_err());
     let error = result.unwrap_err().to_string();
     assert!(error.contains("name"));

@@ -1,7 +1,7 @@
 use crate::color::ColorConfig;
 use anyhow::Result;
-use claudio_core::preset::loader;
 use claudio_core::preset::types::Preset;
+use claudio_core::preset::{dirs, io};
 use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
 use comfy_table::{Attribute, Cell, CellAlignment, ContentArrangement, Table};
@@ -136,7 +136,7 @@ pub fn list(
     color_config: &ColorConfig,
 ) -> Result<()> {
     let effective_scope = effective_read_scope(scope);
-    let preset_dirs = loader::get_preset_dirs_scoped(effective_scope)?;
+    let preset_dirs = dirs::get_preset_dirs_scoped(effective_scope)?;
 
     // Validate fields once before processing any directories
     let validated_fields = if let Some(custom_fields) = fields {
@@ -158,7 +158,7 @@ pub fn list(
                     continue;
                 }
 
-                match loader::load_preset(&path) {
+                match io::load_preset(&path) {
                     Ok(preset_obj) => {
                         if preset.is_none() || preset_obj.name == preset.unwrap() {
                             dir_presets.push((path, preset_obj));

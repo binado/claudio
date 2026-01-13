@@ -1,7 +1,7 @@
 use crate::color::ColorConfig;
 use crate::commands::{build_resolver_config, effective_read_scope};
 use anyhow::{Context, Result};
-use claudio_core::preset::resolver;
+use claudio_core::preset::resolve;
 use claudio_core::preset::store::PresetStore;
 use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
@@ -77,7 +77,7 @@ pub fn run(
 
     let resolver_cfg = build_resolver_config(effective_scope);
 
-    let resolved = resolver::resolve_inheritance_with_store(
+    let resolved = resolve::resolve_inheritance_with_store(
         &located.preset,
         located.source,
         &store,

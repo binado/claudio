@@ -1,6 +1,6 @@
 use crate::commands::{build_resolver_config, effective_read_scope};
 use anyhow::{Context, Result};
-use claudio_core::preset::resolver;
+use claudio_core::preset::resolve;
 use claudio_core::preset::store::PresetStore;
 use claudio_core::preset::types::PresetSource;
 use claudio_core::scope::Scope;
@@ -34,7 +34,7 @@ pub fn show(preset_name: &str, scope: Scope, resolved: bool, json_only: bool) ->
     if resolved {
         let resolver_cfg = build_resolver_config(effective_scope);
 
-        let resolved_preset = resolver::resolve_inheritance_with_store(
+        let resolved_preset = resolve::resolve_inheritance_with_store(
             &located.preset,
             located.source,
             &store,
