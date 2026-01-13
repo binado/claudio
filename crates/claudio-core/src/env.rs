@@ -31,16 +31,20 @@ pub fn get_required_env_var(var: &str) -> Result<String> {
 ///
 /// Returns an error if any referenced variable is missing.
 pub fn substitute_env_vars(value: &str) -> Result<String> {
-    // Validate all variables exist before replacement.
+    let mut result = String::with_capacity(value.len());
+    let mut last_match = 0;
+
     for caps in VAR_REGEX.captures_iter(value) {
+        let m = caps.get(0).expect("regex capture 0 is the full match");
+        result.push_str(&value[last_match..m.start()]);
+
         let var_name = &caps[1];
-        get_required_env_var(var_name)?;
+        let var_value = get_required_env_var(var_name)?;
+        result.push_str(&var_value);
+
+        last_match = m.end();
     }
 
-    let resolved_value = VAR_REGEX.replace_all(value, |caps: &regex::Captures| {
-        let var_name = &caps[1];
-        std::env::var(var_name).expect("Variable should exist (already validated)")
-    });
-
-    Ok(resolved_value.to_string())
+    result.push_str(&value[last_match..]);
+    Ok(result)
 }
