@@ -96,6 +96,9 @@ pub(crate) fn resolve_inheritance_recursive(
     }
 
     visited_set.remove(&preset.name);
+    if let Some(popped) = visited_vec.pop() {
+        debug_assert_eq!(popped, preset.name);
+    }
 
     let resolved_settings = if let Some(s) = settings {
         Some(resolve_settings_variables(&s)?)
