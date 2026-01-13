@@ -1,73 +1,87 @@
+use crate::env::CLAUDIO_HOME_DIR_ENV_VAR;
 use anyhow::{Result, bail};
 use directories::BaseDirs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-const CLAUDIO_HOME_DIR_ENV_VAR: &str = "CLAUDIO_HOME_DIR";
-
-/// Get the claudio home directory, respecting CLAUDIO_HOME_DIR environment variable.
+/// Get the claudio home directory, respecting `CLAUDIO_HOME_DIR` environment variable.
 ///
 /// This function checks for the `CLAUDIO_HOME_DIR` environment variable first.
 /// If set, it must be an absolute path pointing to an existing directory.
-/// If not set, falls back to the user's home directory from the system.
-///
-/// # Returns
-///
-/// * `Ok(PathBuf)` - The claudio home directory path
-/// * `Err` - If the directory doesn't exist, isn't absolute, or home cannot be determined
-///
-/// # Examples
-///
-/// ```no_run
-/// use claudio_core::util::get_claudio_home;
-/// use std::path::PathBuf;
-///
-/// // With CLAUDIO_HOME_DIR set
-/// unsafe {
-///     std::env::set_var("CLAUDIO_HOME_DIR", "/tmp/test-home");
-/// }
-/// let home = get_claudio_home().unwrap();
-/// assert_eq!(home, PathBuf::from("/tmp/test-home"));
-///
-/// // Without CLAUDIO_HOME_DIR
-/// unsafe {
-///     std::env::remove_var("CLAUDIO_HOME_DIR");
-/// }
-/// let home = get_claudio_home().unwrap();
-/// // Returns the user's home directory
-/// ```
+/// If not set, falls back to the user's home directory from the OS.
 pub fn get_claudio_home() -> Result<PathBuf> {
     if let Ok(custom_home) = std::env::var(CLAUDIO_HOME_DIR_ENV_VAR) {
         let path = PathBuf::from(&custom_home);
 
-        // Validate that the path is absolute
         if !path.is_absolute() {
             bail!(
-                "CLAUDIO_HOME_DIR must be an absolute path, got: {}",
+                "{} must be an absolute path, got: {}",
+                CLAUDIO_HOME_DIR_ENV_VAR,
                 custom_home
             );
         }
 
-        // Validate that the directory exists
         if !path.exists() {
-            bail!("CLAUDIO_HOME_DIR path does not exist: {}", path.display());
+            bail!(
+                "{} path does not exist: {}",
+                CLAUDIO_HOME_DIR_ENV_VAR,
+                path.display()
+            );
         }
 
-        // Validate that it's actually a directory
         if !path.is_dir() {
             bail!(
-                "CLAUDIO_HOME_DIR must be a directory, got: {}",
+                "{} must be a directory, got: {}",
+                CLAUDIO_HOME_DIR_ENV_VAR,
                 path.display()
             );
         }
 
         Ok(path)
     } else {
-        // Fallback to the user's home directory
         let home = BaseDirs::new()
             .ok_or_else(|| anyhow::anyhow!("Failed to determine home directory"))?
             .home_dir()
             .to_owned();
         Ok(home)
+    }
+}
+
+/// Expand `~` and `~/...` to the OS home directory.
+///
+/// This intentionally does **not** respect `CLAUDIO_HOME_DIR`.
+pub fn expand_tilde_os_home(path: &str) -> Result<PathBuf> {
+    if path == "~" || path.starts_with("~/") {
+        let home = BaseDirs::new()
+            .ok_or_else(|| anyhow::anyhow!("Failed to determine home directory"))?
+            .home_dir()
+            .to_owned();
+        Ok(home.join(path.strip_prefix("~/").unwrap_or("")))
+    } else {
+        Ok(PathBuf::from(path))
+    }
+}
+
+/// Find the project root by searching upward from a start directory.
+///
+/// If `start` is `None`, uses the current directory.
+/// A project root is a directory containing either `.claudio/` or `.git/`.
+pub fn find_project_root(start: Option<&Path>) -> Option<PathBuf> {
+    let start = match start {
+        Some(p) => p.to_path_buf(),
+        None => std::env::current_dir().ok()?,
+    };
+
+    let mut dir: &Path = &start;
+
+    loop {
+        if dir.join(".claudio").is_dir() || dir.join(".git").is_dir() {
+            return Some(dir.to_path_buf());
+        }
+
+        match dir.parent() {
+            Some(parent) => dir = parent,
+            None => return None,
+        }
     }
 }
 
@@ -77,10 +91,6 @@ mod tests {
     use serial_test::serial;
     use std::env;
 
-    /// Tests for `get_claudio_home` that modify `CLAUDIO_HOME_DIR`.
-    ///
-    /// This test is marked with `#[serial]` to prevent race conditions when running
-    /// tests in parallel, since it modifies the shared `CLAUDIO_HOME_DIR` environment variable.
     #[test]
     #[serial]
     fn test_get_claudio_home() {
@@ -163,7 +173,6 @@ mod tests {
             );
         }
 
-        // Clean up
         unsafe {
             env::remove_var(CLAUDIO_HOME_DIR_ENV_VAR);
         }

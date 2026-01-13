@@ -1,7 +1,6 @@
-use crate::preset;
+use crate::paths::{find_project_root, get_claudio_home};
 use crate::scope::Scope;
 use crate::settings::types::Settings;
-use crate::util::get_claudio_home;
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 
@@ -258,7 +257,6 @@ fn get_user_settings_path() -> Result<PathBuf> {
 }
 
 fn get_project_settings_path() -> Option<PathBuf> {
-    let cwd = std::env::current_dir().ok()?;
-    let root = preset::loader::find_project_root(&cwd)?;
+    let root = find_project_root(None)?;
     Some(root.join(".claudio").join("settings.json"))
 }

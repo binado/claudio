@@ -129,6 +129,7 @@ impl PresetStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::env::CLAUDIO_HOME_DIR_ENV_VAR;
     use serial_test::serial;
     use std::fs;
     use tempfile::TempDir;
@@ -137,14 +138,14 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let home_path = temp_dir.path().to_string_lossy().to_string();
         unsafe {
-            std::env::set_var("CLAUDIO_HOME_DIR", &home_path);
+            std::env::set_var(CLAUDIO_HOME_DIR_ENV_VAR, &home_path);
         }
         (temp_dir, home_path)
     }
 
     fn cleanup_test_env() {
         unsafe {
-            std::env::remove_var("CLAUDIO_HOME_DIR");
+            std::env::remove_var(CLAUDIO_HOME_DIR_ENV_VAR);
         }
     }
 
