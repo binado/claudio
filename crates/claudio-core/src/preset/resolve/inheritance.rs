@@ -1,7 +1,7 @@
-use crate::preset::loader;
 use crate::preset::resolve::env_values::resolve_variables_with_source;
 use crate::preset::resolve::settings::{merge_json_settings, resolve_settings_variables};
 use crate::preset::types::{Preset, PresetSource, ResolvedPreset};
+use crate::preset::{io, lookup};
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 
@@ -63,9 +63,9 @@ pub(crate) fn resolve_inheritance_recursive(
                 .with_context(|| format!("Failed to find base preset: {}", base_name))?;
             (located.preset, located.source)
         } else {
-            let base_path = loader::find_preset(base_name)
+            let base_path = lookup::find_preset(base_name)
                 .with_context(|| format!("Failed to find base preset: {}", base_name))?;
-            let base_preset = loader::load_preset(&base_path)
+            let base_preset = io::load_preset(&base_path)
                 .with_context(|| format!("Failed to load base preset: {}", base_name))?;
             (base_preset, PresetSource::File(base_path))
         };

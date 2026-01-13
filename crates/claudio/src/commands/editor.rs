@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use claudio_core::preset::loader;
+use claudio_core::preset::io;
 use std::env;
 use std::process::Command;
 
@@ -29,7 +29,7 @@ pub fn open_in_editor(preset_path: &std::path::Path) -> Result<()> {
         .with_context(|| format!("Failed to open editor '{}'", editor))?;
 
     if status.success() {
-        let preset = loader::load_preset(preset_path)
+        let preset = io::load_preset(preset_path)
             .with_context(|| format!("Preset file is invalid: {}", preset_path.display()))?;
 
         let validation = preset.validate(Some(preset_path));

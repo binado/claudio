@@ -1,5 +1,5 @@
 use anyhow::Result;
-use claudio_core::preset::loader;
+use claudio_core::preset::naming;
 use claudio_core::preset::store::PresetStore;
 use claudio_core::preset::types::PresetSource;
 use claudio_core::scope::Scope;
@@ -15,7 +15,7 @@ pub fn edit(preset_name: &str, scope: Scope) -> Result<()> {
     if store.scope() == Scope::Auto {
         let mut file_paths = Vec::new();
         for dir in store.search_dirs() {
-            for path in loader::candidate_preset_paths_for_name(dir, preset_name) {
+            for path in naming::candidate_preset_paths_for_name(dir, preset_name) {
                 if path.exists() {
                     file_paths.push(path);
                 }

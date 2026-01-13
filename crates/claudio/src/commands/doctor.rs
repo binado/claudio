@@ -1,6 +1,6 @@
 use crate::commands::{build_resolver_config, effective_read_scope};
 use anyhow::{Context, Result};
-use claudio_core::preset::resolver;
+use claudio_core::preset::resolve;
 use claudio_core::preset::store::PresetStore;
 use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
@@ -286,20 +286,20 @@ fn check_settings_scoped(report: &mut DoctorReport, scope: Scope) {
 }
 
 fn check_preset_directories(report: &mut DoctorReport, scope: Scope) {
-    use claudio_core::preset::loader;
+    use claudio_core::preset::dirs;
 
     let dirs_to_check: Vec<(&str, Result<Vec<std::path::PathBuf>, _>)> = match scope {
         Scope::Auto => {
             vec![
-                ("project", loader::get_preset_dirs_scoped(Scope::Project)),
-                ("user", loader::get_preset_dirs_scoped(Scope::User)),
+                ("project", dirs::get_preset_dirs_scoped(Scope::Project)),
+                ("user", dirs::get_preset_dirs_scoped(Scope::User)),
             ]
         }
         Scope::Project => {
-            vec![("project", loader::get_preset_dirs_scoped(Scope::Project))]
+            vec![("project", dirs::get_preset_dirs_scoped(Scope::Project))]
         }
         Scope::User => {
-            vec![("user", loader::get_preset_dirs_scoped(Scope::User))]
+            vec![("user", dirs::get_preset_dirs_scoped(Scope::User))]
         }
     };
 
@@ -403,7 +403,7 @@ fn load_presets(
 
     // File presets
     for path in paths {
-        match claudio_core::preset::loader::load_preset(&path) {
+        match claudio_core::preset::io::load_preset(&path) {
             Ok(preset) => loaded.push(LoadedPreset {
                 preset,
                 source: claudio_core::preset::types::PresetSource::File(path.clone()),
@@ -550,7 +550,7 @@ fn check_inheritance(
         checked_any = true;
 
         let extends = loaded.preset.extends.clone();
-        match resolver::resolve_inheritance_with_store(
+        match resolve::resolve_inheritance_with_store(
             &loaded.preset,
             loaded.source.clone(),
             store,
@@ -648,7 +648,7 @@ fn check_environment_variables(
         for (key, value) in env {
             match value {
                 claudio_core::preset::types::EnvValue::Direct(s) => {
-                    for var_name in resolver::extract_variable_references(s) {
+                    for var_name in claudio_core::env::extract_variable_references(s) {
                         if std::env::var(&var_name).is_err() {
                             missing_env_vars.insert(var_name);
                         }
@@ -662,7 +662,7 @@ fn check_environment_variables(
                         }
                     }
                     claudio_core::preset::types::EnvValueSource::File { path } => {
-                        match resolver::resolve_file_path_for_source(path, &loaded.source) {
+                        match resolve::resolve_file_path_for_source(path, &loaded.source) {
                             Ok(resolved_path) => {
                                 if std::fs::read_to_string(&resolved_path).is_err() {
                                     missing_files.push(json!({

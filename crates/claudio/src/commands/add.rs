@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use claudio_core::preset::loader;
+use claudio_core::preset::io;
 use claudio_core::preset::store::PresetStore;
 use claudio_core::scope::Scope;
 
@@ -38,7 +38,7 @@ pub fn add(preset_name: &str, extends: Option<String>, scope: Scope) -> Result<(
     }
 
     // 3. Create the new preset file
-    let mut new_preset = loader::default_preset(preset_name);
+    let mut new_preset = io::default_preset(preset_name);
     new_preset.extends = extends;
     let target_dir = store.write_dir()?;
 
@@ -53,7 +53,7 @@ pub fn add(preset_name: &str, extends: Option<String>, scope: Scope) -> Result<(
     let new_path = store.path_for_name(preset_name)?;
 
     // Atomic write to avoid partial files on interruption.
-    loader::write_preset_atomic(&new_path, &new_preset)
+    io::write_preset_atomic(&new_path, &new_preset)
         .with_context(|| format!("Failed to write preset file: {}", new_path.display()))?;
 
     // 4. Open in editor

@@ -1,7 +1,7 @@
 mod common;
 
-use claudio_core::preset::loader;
 use claudio_core::preset::types::EnvValue;
+use claudio_core::preset::{discovery, io, lookup};
 use claudio_core::scope::Scope;
 use common::TestEnvironment;
 
@@ -44,8 +44,8 @@ fn test_load_preset_from_project() {
     );
 
     // Load preset
-    let path = loader::find_preset_scoped("test-preset", Scope::Project).unwrap();
-    let preset = loader::load_preset(&path).unwrap();
+    let path = lookup::find_preset_scoped("test-preset", Scope::Project).unwrap();
+    let preset = io::load_preset(&path).unwrap();
     assert_eq!(preset.name, "test-preset");
     assert_eq!(preset.description, Some("Test preset".to_string()));
     assert_eq!(
@@ -77,8 +77,8 @@ fn test_load_preset_from_user() {
     );
 
     // Load preset
-    let path = loader::find_preset_scoped("test-preset", Scope::User).unwrap();
-    let preset = loader::load_preset(&path).unwrap();
+    let path = lookup::find_preset_scoped("test-preset", Scope::User).unwrap();
+    let preset = io::load_preset(&path).unwrap();
     assert_eq!(preset.name, "test-preset");
     assert_eq!(preset.description, Some("Test preset".to_string()));
     assert_eq!(
@@ -123,8 +123,8 @@ fn test_project_preset_shadows_user_preset() {
     );
 
     // Auto scope should resolve to the project preset path first
-    let path = loader::find_preset_scoped("test-preset", Scope::Auto).unwrap();
-    let preset = loader::load_preset(&path).unwrap();
+    let path = lookup::find_preset_scoped("test-preset", Scope::Auto).unwrap();
+    let preset = io::load_preset(&path).unwrap();
     assert_eq!(preset.description, Some("Project preset".to_string()));
     assert_eq!(
         preset.env.as_ref().and_then(|env| env.get("TEST_VAR")),
@@ -166,12 +166,12 @@ fn test_load_multiple_presets() {
     );
 
     // Discover + load presets
-    let paths = loader::discover_presets_scoped(Scope::Project).unwrap();
+    let paths = discovery::discover_presets_scoped(Scope::Project).unwrap();
     assert_eq!(paths.len(), 2);
 
     let mut names: Vec<String> = paths
         .iter()
-        .map(|p| loader::load_preset(p).unwrap().name)
+        .map(|p| io::load_preset(p).unwrap().name)
         .collect();
     names.sort();
     assert_eq!(names, vec!["preset1".to_string(), "preset2".to_string()]);
@@ -194,7 +194,7 @@ fn test_invalid_json_preset_file() {
         .join(".claudio")
         .join("presets")
         .join("invalid.json");
-    let result = loader::load_preset(&path);
+    let result = io::load_preset(&path);
     assert!(result.is_err());
 }
 
@@ -212,6 +212,6 @@ fn test_missing_presets_directory() {
     // Don't create config directory
 
     // Discover should return empty list for project scope
-    let paths = loader::discover_presets_scoped(Scope::Project).unwrap();
+    let paths = discovery::discover_presets_scoped(Scope::Project).unwrap();
     assert_eq!(paths.len(), 0);
 }

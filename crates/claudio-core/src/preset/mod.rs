@@ -1,10 +1,8 @@
 pub mod dirs;
 pub mod discovery;
 pub mod io;
-pub mod loader;
 pub mod lookup;
 pub mod naming;
 pub mod resolve;
-pub mod resolver;
 pub mod store;
 pub mod types;

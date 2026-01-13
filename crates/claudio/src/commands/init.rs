@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use claudio_core::preset::loader;
+use claudio_core::preset::dirs;
 use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
 use claudio_core::settings::types::Settings;
@@ -8,7 +8,7 @@ pub fn init(scope: Scope) -> Result<()> {
     // For init, we support initializing either the project directory or the
     // user directory. If the user passes `auto`, we prefer project-local when
     // a project root is detected, otherwise fall back to user directory.
-    let preset_dir = loader::get_preset_write_dir_scoped(scope)?;
+    let preset_dir = dirs::get_preset_write_dir_scoped(scope)?;
 
     std::fs::create_dir_all(&preset_dir).with_context(|| {
         format!(
