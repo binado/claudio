@@ -46,6 +46,10 @@ pub struct RunArgs {
     #[arg(long)]
     pub dry_run: bool,
 
+    /// Claude Code executable name or path (overrides settings and env var)
+    #[arg(long)]
+    pub claude_executable: Option<String>,
+
     /// Additional arguments to pass to claude
     #[arg(last = true, allow_hyphen_values = true)]
     pub claude_args: Vec<String>,
@@ -62,10 +66,6 @@ pub struct Cli {
     /// Disable colored output
     #[arg(long, global = true)]
     pub no_color: bool,
-
-    /// Claude Code executable name or path (overrides settings and env var)
-    #[arg(long, global = true)]
-    pub claude_executable: Option<String>,
 
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -93,6 +93,10 @@ pub enum Commands {
     Doctor {
         #[command(flatten)]
         scope: ScopeArgs,
+
+        /// Claude Code executable name or path (overrides settings and env var)
+        #[arg(long)]
+        claude_executable: Option<String>,
 
         /// Output results as JSON
         #[arg(long)]

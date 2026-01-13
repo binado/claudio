@@ -95,7 +95,7 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
     let exit_code = match &cli.command {
         Some(Commands::Run(args)) => {
             // Explicit: claudio run my-preset
-            execute_run_command(args, &color_config, cli.claude_executable.as_deref())?
+            execute_run_command(args, &color_config, args.claude_executable.as_deref())?
         }
         Some(Commands::Init { scope }) => {
             crate::commands::init::init(scope.scope.into())?;
@@ -103,13 +103,14 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
         }
         Some(Commands::Doctor {
             scope,
+            claude_executable,
             json,
             verbose,
         }) => crate::commands::doctor::doctor(
             scope.scope.into(),
             *json,
             *verbose,
-            cli.claude_executable.as_deref(),
+            claude_executable.as_deref(),
         )?,
         Some(Commands::Preset { command }) => match command {
             PresetCommands::List {
@@ -140,7 +141,7 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
                     scope.scope.into(),
                     *resolved,
                     *json,
-                    cli.claude_executable.as_deref(),
+                    cli.run_args.claude_executable.as_deref(),
                 )?;
                 ExitCode::SUCCESS
             }
@@ -174,7 +175,7 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
             execute_run_command(
                 &cli.run_args,
                 &color_config,
-                cli.claude_executable.as_deref(),
+                cli.run_args.claude_executable.as_deref(),
             )?
         }
     };
