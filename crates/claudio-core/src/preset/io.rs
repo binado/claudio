@@ -48,6 +48,9 @@ pub fn write_preset_atomic(path: &Path, preset: &Preset) -> Result<()> {
         .with_context(|| format!("Failed to write preset file: {}", tmp_path.display()))?;
 
     std::fs::rename(&tmp_path, path)
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&tmp_path);
+        })
         .with_context(|| format!("Failed to replace preset file: {}", path.display()))?;
 
     Ok(())
