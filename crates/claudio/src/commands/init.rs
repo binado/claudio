@@ -9,51 +9,56 @@ use std::path::{Path, PathBuf};
 
 use crate::color::ColorConfig;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct InitStatus {
     preset_dir_created: bool,
     preset_dir_existed: bool,
     settings_created: bool,
     settings_existed: bool,
-    settings_backed_up: bool,
     backup_path: Option<PathBuf>,
+}
+
+fn format_relative_to_project(path: &Path) -> String {
+    path.strip_prefix(std::env::current_dir().unwrap_or_default())
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| path.display().to_string())
+}
+
+fn format_relative_to_home(path: &Path) -> String {
+    let home_dir = get_claudio_home().unwrap_or_else(|_| PathBuf::from("~"));
+    path.strip_prefix(&home_dir)
+        .map(|p| format!("~/.{}", p.display()))
+        .unwrap_or_else(|_| path.display().to_string())
 }
 
 fn get_relative_display_path(path: &Path, scope: Scope) -> String {
     match scope {
-        Scope::Project => {
-            if let Ok(rel_path) = path.strip_prefix(std::env::current_dir().unwrap_or_default()) {
-                rel_path.display().to_string()
-            } else {
-                path.display().to_string()
-            }
-        }
-        Scope::User => {
-            let home_dir = get_claudio_home().unwrap_or_else(|_| PathBuf::from("~"));
-            if let Ok(rel_path) = path.strip_prefix(&home_dir) {
-                format!("~/.{}", rel_path.display())
-            } else {
-                path.display().to_string()
-            }
-        }
+        Scope::Project => format_relative_to_project(path),
+        Scope::User => format_relative_to_home(path),
         Scope::Auto => {
             let project_root = find_project_root(None);
             if project_root.as_ref().is_some_and(|p| path.starts_with(p)) {
-                if let Ok(rel_path) = path.strip_prefix(project_root.as_ref().unwrap()) {
-                    rel_path.display().to_string()
-                } else {
-                    path.display().to_string()
-                }
+                format_relative_to_project(path)
             } else {
-                let home_dir = get_claudio_home().unwrap_or_else(|_| PathBuf::from("~"));
-                if let Ok(rel_path) = path.strip_prefix(&home_dir) {
-                    format!("~/.{}", rel_path.display())
-                } else {
-                    path.display().to_string()
-                }
+                format_relative_to_home(path)
             }
         }
     }
+}
+
+fn write_default_settings(settings_path: &Path) -> Result<()> {
+    if let Some(parent) = settings_path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| {
+            format!("Failed to create settings directory: {}", parent.display())
+        })?;
+    }
+
+    let default_settings = Settings::default();
+    let json = serde_json::to_string_pretty(&default_settings)
+        .context("Failed to serialize settings to JSON")?;
+
+    std::fs::write(settings_path, json)
+        .with_context(|| format!("Failed to write settings file: {}", settings_path.display()))
 }
 
 pub fn init(
@@ -63,14 +68,7 @@ pub fn init(
     force: bool,
     color_config: &ColorConfig,
 ) -> Result<()> {
-    let mut status = InitStatus {
-        preset_dir_created: false,
-        preset_dir_existed: false,
-        settings_created: false,
-        settings_existed: false,
-        settings_backed_up: false,
-        backup_path: None,
-    };
+    let mut status = InitStatus::default();
 
     // Collect output lines for table display
     let mut output_lines: Vec<(String, String)> = Vec::new();
@@ -126,7 +124,6 @@ pub fn init(
                 backup_path.display()
             )
         })?;
-        status.settings_backed_up = true;
         status.backup_path = Some(backup_path);
 
         output_lines.push((
@@ -134,21 +131,7 @@ pub fn init(
             format!("{} -> {}.backup", settings_relative, settings_relative),
         ));
 
-        // Write new settings
-        if let Some(parent) = settings_path.parent() {
-            std::fs::create_dir_all(parent).with_context(|| {
-                format!("Failed to create settings directory: {}", parent.display())
-            })?;
-        }
-
-        let default_settings = Settings::default();
-        let json = serde_json::to_string_pretty(&default_settings)
-            .context("Failed to serialize settings to JSON")?;
-
-        std::fs::write(&settings_path, json).with_context(|| {
-            format!("Failed to write settings file: {}", settings_path.display())
-        })?;
-
+        write_default_settings(&settings_path)?;
         status.settings_created = true;
         output_lines.push(("created".to_string(), settings_relative.clone()));
     } else if settings_exists && force && dry_run {
@@ -159,21 +142,7 @@ pub fn init(
     } else if dry_run {
         output_lines.push(("would-add".to_string(), settings_relative.clone()));
     } else {
-        // Create settings file
-        if let Some(parent) = settings_path.parent() {
-            std::fs::create_dir_all(parent).with_context(|| {
-                format!("Failed to create settings directory: {}", parent.display())
-            })?;
-        }
-
-        let default_settings = Settings::default();
-        let json = serde_json::to_string_pretty(&default_settings)
-            .context("Failed to serialize settings to JSON")?;
-
-        std::fs::write(&settings_path, json).with_context(|| {
-            format!("Failed to write settings file: {}", settings_path.display())
-        })?;
-
+        write_default_settings(&settings_path)?;
         status.settings_created = true;
         output_lines.push(("created".to_string(), settings_relative.clone()));
     }
