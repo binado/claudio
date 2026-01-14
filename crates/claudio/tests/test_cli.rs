@@ -17,6 +17,22 @@ fn run_claudio(cwd: &Path, args: &[&str], env_vars: &[(&str, &str)]) -> std::pro
     cmd.output().expect("Failed to execute command")
 }
 
+fn list_backup_files(dir: &Path) -> Vec<std::path::PathBuf> {
+    std::fs::read_dir(dir)
+        .unwrap()
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with("settings.json.") && name.ends_with(".backup") {
+                Some(entry.path())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 #[test]
 #[serial]
 fn test_init_command_creates_directories() {
@@ -717,21 +733,7 @@ fn test_init_force_creates_backup() {
     );
 
     // Verify backup was created (with timestamp)
-    let backup_files: Vec<_> = std::fs::read_dir(env.project_dir.join(".claudio"))
-        .unwrap()
-        .filter(|e| {
-            e.as_ref()
-                .unwrap()
-                .file_name()
-                .to_string_lossy()
-                .starts_with("settings.json.")
-                && e.as_ref()
-                    .unwrap()
-                    .file_name()
-                    .to_string_lossy()
-                    .ends_with(".backup")
-        })
-        .collect();
+    let backup_files = list_backup_files(&env.project_dir.join(".claudio"));
     assert!(
         !backup_files.is_empty(),
         "Backup file should exist, found files: {:?}",
@@ -742,22 +744,8 @@ fn test_init_force_creates_backup() {
     );
 
     // Verify backup contains corrupted data
-    let backup_files: Vec<_> = std::fs::read_dir(env.project_dir.join(".claudio"))
-        .unwrap()
-        .filter(|e| {
-            e.as_ref()
-                .unwrap()
-                .file_name()
-                .to_string_lossy()
-                .starts_with("settings.json.")
-                && e.as_ref()
-                    .unwrap()
-                    .file_name()
-                    .to_string_lossy()
-                    .ends_with(".backup")
-        })
-        .collect();
-    let backup_path = &backup_files[0].as_ref().unwrap().path();
+    let backup_files = list_backup_files(&env.project_dir.join(".claudio"));
+    let backup_path = &backup_files[0];
     let backup_content = std::fs::read_to_string(backup_path).unwrap();
     assert!(
         backup_content.contains("corrupted"),
