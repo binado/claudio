@@ -1,5 +1,6 @@
 mod common;
 
+use claudio_core::env::CLAUDIO_HOME_DIR_ENV_VAR;
 use common::TestEnvironment;
 use serial_test::serial;
 use std::path::Path;
@@ -17,6 +18,22 @@ fn run_claudio(cwd: &Path, args: &[&str], env_vars: &[(&str, &str)]) -> std::pro
     cmd.output().expect("Failed to execute command")
 }
 
+fn list_backup_files(dir: &Path) -> Vec<std::path::PathBuf> {
+    std::fs::read_dir(dir)
+        .unwrap()
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with("settings.json.") && name.ends_with(".backup") {
+                Some(entry.path())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 #[test]
 #[serial]
 fn test_init_command_creates_directories() {
@@ -29,7 +46,7 @@ fn test_init_command_creates_directories() {
     let output = run_claudio(
         &env.project_dir,
         &["init", "--scope", "project"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
@@ -61,7 +78,7 @@ fn test_preset_add_command_creates_preset_file() {
         &env.project_dir,
         &["preset", "add", "test-preset", "--scope", "project"],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"), // Avoid opening an editor
         ],
     );
@@ -111,7 +128,7 @@ fn test_preset_list_command_shows_available_presets() {
     let output = run_claudio(
         &env.project_dir,
         &["preset", "list"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
@@ -149,7 +166,7 @@ fn test_preset_show_command_displays_preset_details() {
     let output = run_claudio(
         &env.project_dir,
         &["preset", "show", "test-preset"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
@@ -179,7 +196,7 @@ fn test_invalid_command_returns_error() {
     let output = run_claudio(
         &env.project_dir,
         &["invalid-command"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(!output.status.success(), "Invalid command should fail");
@@ -225,7 +242,7 @@ fn test_preset_add_with_extends_flag() {
             "project",
         ],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"), // Avoid opening an editor
         ],
     );
@@ -273,7 +290,7 @@ fn test_preset_add_with_extend_alias() {
             "preset", "add", "derived", "--extend", "base", "--scope", "project",
         ],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"),
         ],
     );
@@ -306,7 +323,7 @@ fn test_preset_add_without_extends_has_null_extends() {
         &env.project_dir,
         &["preset", "add", "standalone", "--scope", "project"],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"),
         ],
     );
@@ -351,7 +368,7 @@ fn test_preset_add_with_nonexistent_base_fails() {
             "project",
         ],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"),
         ],
     );
@@ -406,7 +423,7 @@ fn test_preset_add_extends_finds_base_in_user_scope() {
             "project",
         ],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"),
         ],
     );
@@ -439,7 +456,7 @@ fn test_doctor_command_basic() {
         &env.project_dir,
         &["doctor"],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("CLAUDIO_CLAUDE_EXECUTABLE", "true"),
         ],
     );
@@ -471,7 +488,7 @@ fn test_doctor_command_json_output() {
         &env.project_dir,
         &["doctor", "--json"],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("CLAUDIO_CLAUDE_EXECUTABLE", "true"),
         ],
     );
@@ -511,7 +528,7 @@ fn test_doctor_command_fails_when_executable_missing() {
         &env.project_dir,
         &["doctor", "--json"],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             (
                 "CLAUDIO_CLAUDE_EXECUTABLE",
                 "definitely-not-a-real-claude-executable-12345",
@@ -554,5 +571,269 @@ fn test_doctor_command_fails_when_executable_missing() {
         Some("fail"),
         "Expected claude_executable status=fail\n{}",
         stdout
+    );
+}
+
+#[test]
+#[serial]
+fn test_init_dry_run_does_not_create_files() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // Run init with --dry-run
+    let output = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project", "--dry-run"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Init --dry-run failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify no files were created
+    assert!(!env.project_dir.join(".claudio").exists());
+
+    // Verify dry-run message is shown
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("dry-run")
+            || stderr.contains("would-backup")
+            || stderr.contains("exists")
+            || stderr.contains("would add"),
+        "Expected dry-run related message in stderr: {}",
+        stderr
+    );
+}
+
+#[test]
+#[serial]
+fn test_init_reinitialize_shows_existing_items() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // First init
+    let output1 = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+    assert!(output1.status.success());
+
+    // Second init
+    let output2 = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+    assert!(output2.status.success());
+
+    // Verify message indicates already initialized
+    let stderr = String::from_utf8_lossy(&output2.stderr);
+    assert!(
+        stderr.contains("Already initialized") || stderr.contains("exists"),
+        "Expected 'Already initialized' message: {}",
+        stderr
+    );
+}
+
+#[test]
+#[serial]
+fn test_init_quiet_suppresses_output() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // Run init with --quiet
+    let output = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project", "--quiet"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Init --quiet failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify output is suppressed
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.is_empty() || !stderr.contains("Initializing"),
+        "Expected quiet output, got: {}",
+        stderr
+    );
+
+    // Verify files were still created
+    assert!(env.project_dir.join(".claudio").exists());
+    assert!(env.project_dir.join(".claudio/presets").exists());
+    assert!(env.project_dir.join(".claudio/settings.json").exists());
+}
+
+#[test]
+#[serial]
+fn test_init_quiet_dry_run() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // Run init with --quiet and --dry-run
+    let output = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project", "--quiet", "--dry-run"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Init --quiet --dry-run failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify output is suppressed
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.is_empty() || stderr.trim().is_empty(),
+        "Expected completely silent output, got: {}",
+        stderr
+    );
+
+    // Verify nothing was created
+    assert!(!env.project_dir.join(".claudio").exists());
+}
+
+#[test]
+#[serial]
+fn test_init_force_creates_backup() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // First init
+    run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+
+    // Corrupt the settings file
+    let settings_path = env.project_dir.join(".claudio").join("settings.json");
+    std::fs::write(&settings_path, r#"{"corrupted": true}"#).unwrap();
+
+    // Run init with --force
+    let output = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project", "--force"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Init --force failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify backup was created (with timestamp)
+    let backup_files = list_backup_files(&env.project_dir.join(".claudio"));
+    assert!(
+        !backup_files.is_empty(),
+        "Backup file should exist, found files: {:?}",
+        std::fs::read_dir(env.project_dir.join(".claudio"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect::<Vec<_>>()
+    );
+
+    // Verify backup contains corrupted data
+    let backup_files = list_backup_files(&env.project_dir.join(".claudio"));
+    let backup_path = &backup_files[0];
+    let backup_content = std::fs::read_to_string(backup_path).unwrap();
+    assert!(
+        backup_content.contains("corrupted"),
+        "Backup should contain original corrupted data"
+    );
+
+    // Verify settings.json was restored with valid JSON
+    let settings_content = std::fs::read_to_string(&settings_path).unwrap();
+    assert!(
+        serde_json::from_str::<serde_json::Value>(&settings_content).is_ok(),
+        "Restored settings should be valid JSON"
+    );
+}
+
+#[test]
+#[serial]
+fn test_init_force_dry_run_does_not_create_files() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // First init
+    run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+
+    // Corrupt the settings file
+    let settings_path = env.project_dir.join(".claudio").join("settings.json");
+    std::fs::write(&settings_path, r#"{"corrupted": true}"#).unwrap();
+
+    // Record the current backup file count
+    let backup_count_before = std::fs::read_dir(env.project_dir.join(".claudio"))
+        .unwrap()
+        .filter(|e| {
+            e.as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".backup")
+        })
+        .count();
+
+    // Run init with --force --dry-run
+    let output = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project", "--force", "--dry-run"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Init --force --dry-run failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify no new backup was created
+    let backup_count_after = std::fs::read_dir(env.project_dir.join(".claudio"))
+        .unwrap()
+        .filter(|e| {
+            e.as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".backup")
+        })
+        .count();
+    assert_eq!(
+        backup_count_after, backup_count_before,
+        "No new backup should be created in dry-run mode"
+    );
+
+    // Verify settings.json still contains corrupted data
+    let settings_content = std::fs::read_to_string(&settings_path).unwrap();
+    assert!(
+        settings_content.contains("corrupted"),
+        "Settings should still be corrupted in dry-run mode"
+    );
+
+    // Verify dry-run message is shown
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("dry-run")
+            || stderr.contains("exists")
+            || stderr.contains("would add")
+            || stderr.contains("backup"),
+        "Expected dry-run related message in stderr: {}",
+        stderr
     );
 }

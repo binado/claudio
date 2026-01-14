@@ -83,6 +83,18 @@ pub enum Commands {
     Init {
         #[command(flatten)]
         scope: ScopeArgs,
+
+        /// Preview initialization without creating files
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Suppress output (only show errors)
+        #[arg(long, short = 'q')]
+        quiet: bool,
+
+        /// Force re-initialization (backup existing settings)
+        #[arg(long)]
+        force: bool,
     },
     /// Manage presets (list, show, edit, add, env)
     Preset {

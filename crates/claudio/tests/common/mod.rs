@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use claudio_core::env::CLAUDIO_HOME_DIR_ENV_VAR;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -67,13 +68,13 @@ impl TestEnvironment {
 
     pub fn setup_env_vars(&self) {
         unsafe {
-            std::env::set_var("CLAUDIO_HOME_DIR", &self.home_dir);
+            std::env::set_var(CLAUDIO_HOME_DIR_ENV_VAR, &self.home_dir);
         }
     }
 
     pub fn cleanup_env_vars(&self) {
         unsafe {
-            std::env::remove_var("CLAUDIO_HOME_DIR");
+            std::env::remove_var(CLAUDIO_HOME_DIR_ENV_VAR);
         }
     }
 }
