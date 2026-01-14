@@ -582,7 +582,7 @@ fn test_init_dry_run_does_not_create_files() {
     // Verify dry-run message is shown
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("dry-run") || stderr.contains("Would create"),
+        stderr.contains("dry-run") || stderr.contains("[would-add]"),
         "Expected dry-run message in stderr: {}",
         stderr
     );

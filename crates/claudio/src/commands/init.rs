@@ -3,6 +3,7 @@ use claudio_core::preset::dirs;
 use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
 use claudio_core::settings::types::Settings;
+use comfy_table::{ContentArrangement, Table};
 use std::path::PathBuf;
 
 use crate::color::ColorConfig;
@@ -33,57 +34,37 @@ pub fn init(
         backup_path: None,
     };
 
-    let scope_name = match scope {
+    // Collect output lines for table display
+    let mut output_lines: Vec<(String, String)> = Vec::new();
+
+    // Detect scope for detection purposes (not displayed in output)
+    let _is_project_scope = match scope {
         Scope::Auto => {
             // Detect if we're in a project
-            if dirs::get_preset_write_dir_scoped(scope)
+            dirs::get_preset_write_dir_scoped(scope)
                 .ok()
                 .and_then(|_| {
                     claudio_core::paths::find_project_root(None)?;
                     Some(())
                 })
                 .is_some()
-            {
-                "project"
-            } else {
-                "user"
-            }
         }
-        Scope::Project => "project",
-        Scope::User => "user",
+        Scope::Project => true,
+        Scope::User => false,
     };
-
-    if !quiet {
-        eprintln!(
-            "Initializing claudio in {} scope{}",
-            color_config.highlight(scope_name),
-            if scope_name == "project" {
-                " (git repository detected)"
-            } else {
-                ""
-            }
-        );
-    }
 
     // Handle preset directory
     let preset_dir = dirs::get_preset_write_dir_scoped(scope)?;
     let preset_dir_exists = preset_dir.exists();
 
+    // Determine the relative path to show (from project root or home)
+    let preset_dir_relative = ".claudio/presets".to_string();
+
     if preset_dir_exists {
         status.preset_dir_existed = true;
-        if !quiet {
-            eprintln!(
-                "  • Directory exists: {}",
-                color_config.highlight(preset_dir.file_name().unwrap().to_string_lossy().as_ref())
-            );
-        }
+        output_lines.push(("[exists]".to_string(), preset_dir_relative.clone()));
     } else if dry_run {
-        if !quiet {
-            eprintln!(
-                "  ? Would create: {}",
-                color_config.highlight(preset_dir.file_name().unwrap().to_string_lossy().as_ref())
-            );
-        }
+        output_lines.push(("[would-add]".to_string(), preset_dir_relative.clone()));
     } else {
         std::fs::create_dir_all(&preset_dir).with_context(|| {
             format!(
@@ -92,17 +73,14 @@ pub fn init(
             )
         })?;
         status.preset_dir_created = true;
-        if !quiet {
-            eprintln!(
-                "  ✓ Created directory: {}",
-                color_config.highlight(preset_dir.file_name().unwrap().to_string_lossy().as_ref())
-            );
-        }
+        output_lines.push(("[+]".to_string(), preset_dir_relative.clone()));
     }
 
     // Handle settings file
     let settings_path = settings_loader::get_settings_path(scope)?;
     let settings_exists = settings_path.exists();
+
+    let settings_relative = ".claudio/settings.json".to_string();
 
     if settings_exists && force && !dry_run {
         // Create backup
@@ -120,13 +98,13 @@ pub fn init(
         status.settings_backed_up = true;
         status.backup_path = Some(backup_path);
 
-        if !quiet {
-            eprintln!(
-                "  ⟳ Backed up:       {} → {}",
-                color_config.highlight("settings.json"),
-                color_config.highlight("settings.json.backup")
-            );
-        }
+        output_lines.push((
+            "[backup]".to_string(),
+            format!(
+                "{} -> {}",
+                ".claudio/settings.json", ".claudio/settings.json.backup"
+            ),
+        ));
 
         // Write new settings
         if let Some(parent) = settings_path.parent() {
@@ -144,27 +122,12 @@ pub fn init(
         })?;
 
         status.settings_created = true;
-        if !quiet {
-            eprintln!(
-                "  ✓ Created settings: {}",
-                color_config.highlight("settings.json")
-            );
-        }
+        output_lines.push(("[+]".to_string(), settings_relative.clone()));
     } else if settings_exists {
         status.settings_existed = true;
-        if !quiet {
-            eprintln!(
-                "  • Settings exist:   {}",
-                color_config.highlight("settings.json")
-            );
-        }
+        output_lines.push(("[exists]".to_string(), settings_relative.clone()));
     } else if dry_run {
-        if !quiet {
-            eprintln!(
-                "  ? Would create: {}",
-                color_config.highlight("settings.json")
-            );
-        }
+        output_lines.push(("[would-add]".to_string(), settings_relative.clone()));
     } else {
         // Create settings file
         if let Some(parent) = settings_path.parent() {
@@ -182,12 +145,20 @@ pub fn init(
         })?;
 
         status.settings_created = true;
-        if !quiet {
-            eprintln!(
-                "  ✓ Created settings: {}",
-                color_config.highlight("settings.json")
-            );
+        output_lines.push(("[+]".to_string(), settings_relative.clone()));
+    }
+
+    // Display output using comfy-table
+    if !quiet && !output_lines.is_empty() {
+        let mut table = Table::new();
+        table.set_content_arrangement(ContentArrangement::Disabled);
+        table.load_preset(comfy_table::presets::NOTHING);
+
+        for (status_tag, path) in &output_lines {
+            table.add_row(vec![status_tag, &color_config.highlight(path)]);
         }
+
+        eprintln!("{}", table);
     }
 
     // Print summary
@@ -201,11 +172,11 @@ pub fn init(
                 eprintln!();
                 eprintln!("Next steps:");
                 eprintln!(
-                    "  • Create your first preset: {}",
+                    "  - Create your first preset: {}",
                     color_config.highlight("claudio preset add my-preset")
                 );
                 eprintln!(
-                    "  • List available presets:  {}",
+                    "  - List available presets:  {}",
                     color_config.highlight("claudio preset list")
                 );
             }
