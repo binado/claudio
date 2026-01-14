@@ -112,6 +112,8 @@ pub fn init(
 
         status.settings_created = true;
         output_lines.push(("created".to_string(), settings_relative.clone()));
+    } else if settings_exists && force && dry_run {
+        output_lines.push(("would-backup".to_string(), settings_relative.clone()));
     } else if settings_exists {
         status.settings_existed = true;
         output_lines.push(("exists".to_string(), settings_relative.clone()));
