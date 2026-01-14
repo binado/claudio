@@ -602,7 +602,7 @@ fn test_init_dry_run_does_not_create_files() {
         stderr.contains("dry-run")
             || stderr.contains("would-backup")
             || stderr.contains("exists")
-            || stderr.contains("would-add"),
+            || stderr.contains("would add"),
         "Expected dry-run related message in stderr: {}",
         stderr
     );
@@ -831,7 +831,7 @@ fn test_init_force_dry_run_does_not_create_files() {
     assert!(
         stderr.contains("dry-run")
             || stderr.contains("exists")
-            || stderr.contains("would-add")
+            || stderr.contains("would add")
             || stderr.contains("backup"),
         "Expected dry-run related message in stderr: {}",
         stderr

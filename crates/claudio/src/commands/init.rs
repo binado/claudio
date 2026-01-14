@@ -91,7 +91,7 @@ pub fn init(
         status.preset_dir_existed = true;
         output_lines.push(("exists".to_string(), preset_dir_relative.clone()));
     } else if dry_run {
-        output_lines.push(("would-add".to_string(), preset_dir_relative.clone()));
+        output_lines.push(("would add".to_string(), preset_dir_relative.clone()));
     } else {
         std::fs::create_dir_all(&preset_dir).with_context(|| {
             format!(
@@ -150,7 +150,7 @@ pub fn init(
         status.settings_existed = true;
         output_lines.push(("exists".to_string(), settings_relative.clone()));
     } else if dry_run {
-        output_lines.push(("would-add".to_string(), settings_relative.clone()));
+        output_lines.push(("would add".to_string(), settings_relative.clone()));
     } else {
         write_default_settings(&settings_path)?;
         status.settings_created = true;
