@@ -1,10 +1,11 @@
 use anyhow::{Context, Result};
+use claudio_core::paths::{find_project_root, get_claudio_home};
 use claudio_core::preset::dirs;
 use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
 use claudio_core::settings::types::Settings;
 use comfy_table::{ContentArrangement, Table};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::color::ColorConfig;
 
@@ -16,6 +17,43 @@ struct InitStatus {
     settings_existed: bool,
     settings_backed_up: bool,
     backup_path: Option<PathBuf>,
+}
+
+fn get_relative_display_path(path: &Path, scope: Scope) -> String {
+    match scope {
+        Scope::Project => {
+            if let Ok(rel_path) = path.strip_prefix(std::env::current_dir().unwrap_or_default()) {
+                rel_path.display().to_string()
+            } else {
+                path.display().to_string()
+            }
+        }
+        Scope::User => {
+            let home_dir = get_claudio_home().unwrap_or_else(|_| PathBuf::from("~"));
+            if let Ok(rel_path) = path.strip_prefix(&home_dir) {
+                format!("~/.{}", rel_path.display())
+            } else {
+                path.display().to_string()
+            }
+        }
+        Scope::Auto => {
+            let project_root = find_project_root(None);
+            if project_root.as_ref().is_some_and(|p| path.starts_with(p)) {
+                if let Ok(rel_path) = path.strip_prefix(project_root.as_ref().unwrap()) {
+                    rel_path.display().to_string()
+                } else {
+                    path.display().to_string()
+                }
+            } else {
+                let home_dir = get_claudio_home().unwrap_or_else(|_| PathBuf::from("~"));
+                if let Ok(rel_path) = path.strip_prefix(&home_dir) {
+                    format!("~/.{}", rel_path.display())
+                } else {
+                    path.display().to_string()
+                }
+            }
+        }
+    }
 }
 
 pub fn init(
@@ -41,8 +79,8 @@ pub fn init(
     let preset_dir = dirs::get_preset_write_dir_scoped(scope)?;
     let preset_dir_exists = preset_dir.exists();
 
-    // Determine the relative path to show (from project root or home)
-    let preset_dir_relative = ".claudio/presets".to_string();
+    // Determine the relative path to show based on scope
+    let preset_dir_relative = get_relative_display_path(&preset_dir, scope);
 
     if preset_dir_exists {
         status.preset_dir_existed = true;
@@ -64,7 +102,8 @@ pub fn init(
     let settings_path = settings_loader::get_settings_path(scope)?;
     let settings_exists = settings_path.exists();
 
-    let settings_relative = ".claudio/settings.json".to_string();
+    // Determine the relative path to show based on scope
+    let settings_relative = get_relative_display_path(&settings_path, scope);
 
     if settings_exists && force && !dry_run {
         // Create backup with timestamp to prevent overwrites
@@ -92,10 +131,7 @@ pub fn init(
 
         output_lines.push((
             "backup".to_string(),
-            format!(
-                "{} -> {}",
-                ".claudio/settings.json", ".claudio/settings.json.backup"
-            ),
+            format!("{} -> {}.backup", settings_relative, settings_relative),
         ));
 
         // Write new settings
