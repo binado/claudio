@@ -70,12 +70,15 @@ pub fn init(
         // Create backup with timestamp to prevent overwrites
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .context("Failed to get current timestamp")?
             .as_secs();
         let mut backup_path = settings_path.clone();
+        let file_name = settings_path
+            .file_name()
+            .ok_or_else(|| anyhow::anyhow!("Settings path has no file name"))?;
         backup_path.set_file_name(format!(
             "{}.{}.backup",
-            settings_path.file_name().unwrap().to_string_lossy(),
+            file_name.to_string_lossy(),
             timestamp
         ));
         std::fs::copy(&settings_path, &backup_path).with_context(|| {
