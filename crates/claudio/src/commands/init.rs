@@ -27,17 +27,13 @@ fn format_relative_to_project(path: &Path) -> String {
 fn format_relative_to_home(path: &Path) -> String {
     let home_dir = get_claudio_home().unwrap_or_else(|_| PathBuf::from("~"));
     match path.strip_prefix(&home_dir) {
-        Ok(p) => match home_dir.file_name() {
-            Some(home_name) => {
-                let home_name = home_name.to_string_lossy();
-                if p.as_os_str().is_empty() {
-                    format!("~/{home_name}")
-                } else {
-                    format!("~/{home_name}/{}", p.display())
-                }
+        Ok(p) => {
+            if p.as_os_str().is_empty() {
+                "~".to_string()
+            } else {
+                format!("~/{}", p.display())
             }
-            None => path.display().to_string(),
-        },
+        }
         Err(_) => path.display().to_string(),
     }
 }
