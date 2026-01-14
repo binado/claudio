@@ -1,5 +1,6 @@
 mod common;
 
+use claudio_core::env::CLAUDIO_HOME_DIR_ENV_VAR;
 use common::TestEnvironment;
 use serial_test::serial;
 use std::path::Path;
@@ -45,7 +46,7 @@ fn test_init_command_creates_directories() {
     let output = run_claudio(
         &env.project_dir,
         &["init", "--scope", "project"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
@@ -77,7 +78,7 @@ fn test_preset_add_command_creates_preset_file() {
         &env.project_dir,
         &["preset", "add", "test-preset", "--scope", "project"],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"), // Avoid opening an editor
         ],
     );
@@ -127,7 +128,7 @@ fn test_preset_list_command_shows_available_presets() {
     let output = run_claudio(
         &env.project_dir,
         &["preset", "list"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
@@ -165,7 +166,7 @@ fn test_preset_show_command_displays_preset_details() {
     let output = run_claudio(
         &env.project_dir,
         &["preset", "show", "test-preset"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
@@ -195,7 +196,7 @@ fn test_invalid_command_returns_error() {
     let output = run_claudio(
         &env.project_dir,
         &["invalid-command"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(!output.status.success(), "Invalid command should fail");
@@ -241,7 +242,7 @@ fn test_preset_add_with_extends_flag() {
             "project",
         ],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"), // Avoid opening an editor
         ],
     );
@@ -289,7 +290,7 @@ fn test_preset_add_with_extend_alias() {
             "preset", "add", "derived", "--extend", "base", "--scope", "project",
         ],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"),
         ],
     );
@@ -322,7 +323,7 @@ fn test_preset_add_without_extends_has_null_extends() {
         &env.project_dir,
         &["preset", "add", "standalone", "--scope", "project"],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"),
         ],
     );
@@ -367,7 +368,7 @@ fn test_preset_add_with_nonexistent_base_fails() {
             "project",
         ],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"),
         ],
     );
@@ -422,7 +423,7 @@ fn test_preset_add_extends_finds_base_in_user_scope() {
             "project",
         ],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("EDITOR", "/usr/bin/true"),
         ],
     );
@@ -455,7 +456,7 @@ fn test_doctor_command_basic() {
         &env.project_dir,
         &["doctor"],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("CLAUDIO_CLAUDE_EXECUTABLE", "true"),
         ],
     );
@@ -487,7 +488,7 @@ fn test_doctor_command_json_output() {
         &env.project_dir,
         &["doctor", "--json"],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             ("CLAUDIO_CLAUDE_EXECUTABLE", "true"),
         ],
     );
@@ -527,7 +528,7 @@ fn test_doctor_command_fails_when_executable_missing() {
         &env.project_dir,
         &["doctor", "--json"],
         &[
-            ("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap()),
+            (CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap()),
             (
                 "CLAUDIO_CLAUDE_EXECUTABLE",
                 "definitely-not-a-real-claude-executable-12345",
@@ -583,7 +584,7 @@ fn test_init_dry_run_does_not_create_files() {
     let output = run_claudio(
         &env.project_dir,
         &["init", "--scope", "project", "--dry-run"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
@@ -617,7 +618,7 @@ fn test_init_reinitialize_shows_existing_items() {
     let output1 = run_claudio(
         &env.project_dir,
         &["init", "--scope", "project"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
     assert!(output1.status.success());
 
@@ -625,7 +626,7 @@ fn test_init_reinitialize_shows_existing_items() {
     let output2 = run_claudio(
         &env.project_dir,
         &["init", "--scope", "project"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
     assert!(output2.status.success());
 
@@ -648,7 +649,7 @@ fn test_init_quiet_suppresses_output() {
     let output = run_claudio(
         &env.project_dir,
         &["init", "--scope", "project", "--quiet"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
@@ -681,7 +682,7 @@ fn test_init_quiet_dry_run() {
     let output = run_claudio(
         &env.project_dir,
         &["init", "--scope", "project", "--quiet", "--dry-run"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
@@ -712,7 +713,7 @@ fn test_init_force_creates_backup() {
     run_claudio(
         &env.project_dir,
         &["init", "--scope", "project"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     // Corrupt the settings file
@@ -723,7 +724,7 @@ fn test_init_force_creates_backup() {
     let output = run_claudio(
         &env.project_dir,
         &["init", "--scope", "project", "--force"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
@@ -770,7 +771,7 @@ fn test_init_force_dry_run_does_not_create_files() {
     run_claudio(
         &env.project_dir,
         &["init", "--scope", "project"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     // Corrupt the settings file
@@ -793,7 +794,7 @@ fn test_init_force_dry_run_does_not_create_files() {
     let output = run_claudio(
         &env.project_dir,
         &["init", "--scope", "project", "--force", "--dry-run"],
-        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
     );
 
     assert!(
