@@ -582,7 +582,7 @@ fn test_init_dry_run_does_not_create_files() {
     // Verify dry-run message is shown
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("dry-run") || stderr.contains("[would-add]"),
+        stderr.contains("dry-run") || stderr.contains("would-add"),
         "Expected dry-run message in stderr: {}",
         stderr
     );
@@ -713,19 +713,49 @@ fn test_init_force_creates_backup() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // Verify backup was created
-    let backup_path = env
-        .project_dir
-        .join(".claudio")
-        .join("settings.json.backup");
+    // Verify backup was created (with timestamp)
+    let backup_files: Vec<_> = std::fs::read_dir(env.project_dir.join(".claudio"))
+        .unwrap()
+        .filter(|e| {
+            e.as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with("settings.json.")
+                && e.as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .ends_with(".backup")
+        })
+        .collect();
     assert!(
-        backup_path.exists(),
-        "Backup file should exist at: {}",
-        backup_path.display()
+        !backup_files.is_empty(),
+        "Backup file should exist, found files: {:?}",
+        std::fs::read_dir(env.project_dir.join(".claudio"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect::<Vec<_>>()
     );
 
     // Verify backup contains corrupted data
-    let backup_content = std::fs::read_to_string(&backup_path).unwrap();
+    let backup_files: Vec<_> = std::fs::read_dir(env.project_dir.join(".claudio"))
+        .unwrap()
+        .filter(|e| {
+            e.as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with("settings.json.")
+                && e.as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .ends_with(".backup")
+        })
+        .collect();
+    let backup_path = &backup_files[0].as_ref().unwrap().path();
+    let backup_content = std::fs::read_to_string(backup_path).unwrap();
     assert!(
         backup_content.contains("corrupted"),
         "Backup should contain original corrupted data"
@@ -736,5 +766,82 @@ fn test_init_force_creates_backup() {
     assert!(
         serde_json::from_str::<serde_json::Value>(&settings_content).is_ok(),
         "Restored settings should be valid JSON"
+    );
+}
+
+#[test]
+#[serial]
+fn test_init_force_dry_run_does_not_create_files() {
+    let env = TestEnvironment::new();
+    std::fs::create_dir_all(env.project_dir.join(".git")).unwrap();
+
+    // First init
+    run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+
+    // Corrupt the settings file
+    let settings_path = env.project_dir.join(".claudio").join("settings.json");
+    std::fs::write(&settings_path, r#"{"corrupted": true}"#).unwrap();
+
+    // Record the current backup file count
+    let backup_count_before = std::fs::read_dir(env.project_dir.join(".claudio"))
+        .unwrap()
+        .filter(|e| {
+            e.as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".backup")
+        })
+        .count();
+
+    // Run init with --force --dry-run
+    let output = run_claudio(
+        &env.project_dir,
+        &["init", "--scope", "project", "--force", "--dry-run"],
+        &[("CLAUDIO_HOME_DIR", env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Init --force --dry-run failed\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify no new backup was created
+    let backup_count_after = std::fs::read_dir(env.project_dir.join(".claudio"))
+        .unwrap()
+        .filter(|e| {
+            e.as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".backup")
+        })
+        .count();
+    assert_eq!(
+        backup_count_after, backup_count_before,
+        "No new backup should be created in dry-run mode"
+    );
+
+    // Verify settings.json still contains corrupted data
+    let settings_content = std::fs::read_to_string(&settings_path).unwrap();
+    assert!(
+        settings_content.contains("corrupted"),
+        "Settings should still be corrupted in dry-run mode"
+    );
+
+    // Verify dry-run message is shown
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("dry-run")
+            || stderr.contains("exists")
+            || stderr.contains("would-add")
+            || stderr.contains("backup"),
+        "Expected dry-run related message in stderr: {}",
+        stderr
     );
 }

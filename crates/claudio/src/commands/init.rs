@@ -37,22 +37,6 @@ pub fn init(
     // Collect output lines for table display
     let mut output_lines: Vec<(String, String)> = Vec::new();
 
-    // Detect scope for detection purposes (not displayed in output)
-    let _is_project_scope = match scope {
-        Scope::Auto => {
-            // Detect if we're in a project
-            dirs::get_preset_write_dir_scoped(scope)
-                .ok()
-                .and_then(|_| {
-                    claudio_core::paths::find_project_root(None)?;
-                    Some(())
-                })
-                .is_some()
-        }
-        Scope::Project => true,
-        Scope::User => false,
-    };
-
     // Handle preset directory
     let preset_dir = dirs::get_preset_write_dir_scoped(scope)?;
     let preset_dir_exists = preset_dir.exists();
@@ -62,9 +46,9 @@ pub fn init(
 
     if preset_dir_exists {
         status.preset_dir_existed = true;
-        output_lines.push(("[exists]".to_string(), preset_dir_relative.clone()));
+        output_lines.push(("exists".to_string(), preset_dir_relative.clone()));
     } else if dry_run {
-        output_lines.push(("[would-add]".to_string(), preset_dir_relative.clone()));
+        output_lines.push(("would-add".to_string(), preset_dir_relative.clone()));
     } else {
         std::fs::create_dir_all(&preset_dir).with_context(|| {
             format!(
@@ -73,7 +57,7 @@ pub fn init(
             )
         })?;
         status.preset_dir_created = true;
-        output_lines.push(("[+]".to_string(), preset_dir_relative.clone()));
+        output_lines.push(("created".to_string(), preset_dir_relative.clone()));
     }
 
     // Handle settings file
@@ -83,11 +67,16 @@ pub fn init(
     let settings_relative = ".claudio/settings.json".to_string();
 
     if settings_exists && force && !dry_run {
-        // Create backup
+        // Create backup with timestamp to prevent overwrites
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         let mut backup_path = settings_path.clone();
         backup_path.set_file_name(format!(
-            "{}.backup",
-            settings_path.file_name().unwrap().to_string_lossy()
+            "{}.{}.backup",
+            settings_path.file_name().unwrap().to_string_lossy(),
+            timestamp
         ));
         std::fs::copy(&settings_path, &backup_path).with_context(|| {
             format!(
@@ -99,7 +88,7 @@ pub fn init(
         status.backup_path = Some(backup_path);
 
         output_lines.push((
-            "[backup]".to_string(),
+            "backup".to_string(),
             format!(
                 "{} -> {}",
                 ".claudio/settings.json", ".claudio/settings.json.backup"
@@ -122,12 +111,12 @@ pub fn init(
         })?;
 
         status.settings_created = true;
-        output_lines.push(("[+]".to_string(), settings_relative.clone()));
+        output_lines.push(("created".to_string(), settings_relative.clone()));
     } else if settings_exists {
         status.settings_existed = true;
-        output_lines.push(("[exists]".to_string(), settings_relative.clone()));
+        output_lines.push(("exists".to_string(), settings_relative.clone()));
     } else if dry_run {
-        output_lines.push(("[would-add]".to_string(), settings_relative.clone()));
+        output_lines.push(("would-add".to_string(), settings_relative.clone()));
     } else {
         // Create settings file
         if let Some(parent) = settings_path.parent() {
@@ -145,7 +134,7 @@ pub fn init(
         })?;
 
         status.settings_created = true;
-        output_lines.push(("[+]".to_string(), settings_relative.clone()));
+        output_lines.push(("created".to_string(), settings_relative.clone()));
     }
 
     // Display output using comfy-table
