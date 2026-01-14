@@ -185,7 +185,7 @@ pub fn init(
                     color_config.highlight("claudio preset add my-preset")
                 );
                 eprintln!(
-                    "  - List available presets:  {}",
+                    "  - List available presets: {}",
                     color_config.highlight("claudio preset list")
                 );
             }
