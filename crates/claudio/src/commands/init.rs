@@ -139,7 +139,10 @@ pub fn init(
 
         output_lines.push((
             "backup".to_string(),
-            format!("{} -> {}.backup", settings_relative, settings_relative),
+            format!(
+                "{} -> {}.{}.backup",
+                settings_relative, settings_relative, timestamp
+            ),
         ));
 
         write_default_settings(&settings_path)?;
