@@ -1,6 +1,5 @@
 use crate::color::ColorConfig;
 use anyhow::Result;
-use claudio_core::preset::types::Preset;
 use claudio_core::preset::{dirs, io};
 use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
@@ -115,18 +114,17 @@ fn get_display_fields<'a>(validated_fields: &'a Option<Vec<String>>) -> Cow<'a, 
 }
 
 fn build_row(
-    preset: &Preset,
+    item: &PresetListItem,
     filepath_display: &str,
     fields: &[String],
     default_preset: Option<&str>,
     color_config: &ColorConfig,
-    env_keys: Option<&[String]>,
 ) -> Vec<Cell> {
     fields
         .iter()
         .map(|field| match field.as_str() {
             "name" => {
-                let name = &preset.name;
+                let name = &item.name;
                 let display_name = if Some(name.as_str()) == default_preset {
                     format!("* {}", name)
                 } else {
@@ -142,16 +140,12 @@ fn build_row(
             }
             field_name => {
                 let value = match field_name {
-                    "description" => preset.description.as_deref().unwrap_or("").to_string(),
+                    "description" => item.description.as_deref().unwrap_or("").to_string(),
                     "filepath" => filepath_display.to_string(),
-                    "env" => env_keys.map(|keys| keys.join(", ")).unwrap_or_default(),
-                    "args" => preset
-                        .args
-                        .as_ref()
-                        .map(|a| a.join(", "))
-                        .unwrap_or_default(),
-                    "extends" => preset.extends.as_deref().unwrap_or("none").to_string(),
-                    "prompt" => preset.prompt.as_deref().unwrap_or("").to_string(),
+                    "env" => String::new(),
+                    "args" => item.args.as_ref().map(|a| a.join(", ")).unwrap_or_default(),
+                    "extends" => item.extends.as_deref().unwrap_or("none").to_string(),
+                    "prompt" => item.prompt.as_deref().unwrap_or("").to_string(),
                     _ => String::new(),
                 };
                 Cell::new(value).set_alignment(CellAlignment::Left)
@@ -411,26 +405,13 @@ pub fn list(
                     default_was_rendered = true;
                 }
 
-                // Convert PresetListItem back to Preset for build_row
-                let preset_obj = Preset {
-                    name: item.name.clone(),
-                    description: item.description.clone(),
-                    env: None, // Will use env_keys from item
-                    args: item.args.clone(),
-                    extends: item.extends.clone(),
-                    prompt: item.prompt.clone(),
-                    settings: None,
-                };
-
                 let filepath_display = item.filepath.as_deref().unwrap_or("");
-                let env_keys_slice = item.env_keys.as_deref();
                 let row = build_row(
-                    &preset_obj,
+                    item,
                     filepath_display,
                     &display_fields,
                     default_preset.as_deref(),
                     color_config,
-                    env_keys_slice,
                 );
                 table.add_row(row);
             }
@@ -503,24 +484,12 @@ pub fn list(
                     default_was_rendered = true;
                 }
 
-                let preset_obj = Preset {
-                    name: item.name.clone(),
-                    description: item.description.clone(),
-                    env: None,
-                    args: item.args.clone(),
-                    extends: item.extends.clone(),
-                    prompt: item.prompt.clone(),
-                    settings: None,
-                };
-
-                let env_keys_slice = item.env_keys.as_deref();
                 let row = build_row(
-                    &preset_obj,
+                    item,
                     "(inline)",
                     &display_fields,
                     default_preset.as_deref(),
                     color_config,
-                    env_keys_slice,
                 );
                 table.add_row(row);
             }
