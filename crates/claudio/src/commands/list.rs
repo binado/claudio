@@ -327,7 +327,8 @@ pub fn list(
             scopes: scopes_used,
             invalid_files,
         };
-        println!("{}", serde_json::to_string_pretty(&output)?);
+        serde_json::to_writer_pretty(std::io::stdout(), &output)?;
+        println!();
     } else {
         // Table output
         let display_fields = get_display_fields(&validated_fields);
