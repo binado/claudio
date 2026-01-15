@@ -171,6 +171,11 @@ pub fn list(
     let effective_scope = effective_read_scope(scope);
     let preset_dirs = dirs::get_preset_dirs_scoped(effective_scope)?;
 
+    // Pre-compute user directory path for accurate scope labeling in Auto mode
+    let user_dir_path = dirs::get_preset_dirs_scoped(Scope::User)
+        .ok()
+        .and_then(|mut dirs| dirs.pop());
+
     if max_width > u16::MAX as usize {
         anyhow::bail!("--max-width must be <= {}", u16::MAX);
     }
@@ -193,15 +198,13 @@ pub fn list(
     let mut scopes_used: Vec<String> = Vec::new();
 
     // Collect file-based presets with proper scope labeling
-    for (dir_index, dir) in preset_dirs.iter().enumerate() {
+    for dir in preset_dirs.iter() {
         // Determine scope label based on known order (not CWD-based)
         let scope_label = match effective_scope {
             Scope::Project => "project",
             Scope::User => "user",
             Scope::Auto => {
-                // For Auto scope, the user dir is always last; project (if present) comes before it.
-                let user_dir_index = preset_dirs.len().saturating_sub(1);
-                if dir_index == user_dir_index {
+                if user_dir_path.as_ref() == Some(dir) {
                     "user"
                 } else {
                     "project"
