@@ -171,7 +171,7 @@ pub fn list(
     let effective_scope = effective_read_scope(scope);
     let preset_dirs = dirs::get_preset_dirs_scoped(effective_scope)?;
 
-    if !json && max_width > u16::MAX as usize {
+    if max_width > u16::MAX as usize {
         anyhow::bail!("--max-width must be <= {}", u16::MAX);
     }
 
