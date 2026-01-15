@@ -71,10 +71,16 @@ pub fn find_project_root(start: Option<&Path>) -> Option<PathBuf> {
         None => std::env::current_dir().ok()?,
     };
 
+    // Get user's home directory to exclude it from project root detection
+    // This prevents ~/.claudio from being incorrectly identified as a project root
+    let user_home = BaseDirs::new()?.home_dir().to_path_buf();
+
     let mut dir: &Path = &start;
 
     loop {
-        if dir.join(".claudio").is_dir() || dir.join(".git").is_dir() {
+        // Skip if this is the user's home directory - ~/.claudio is the user-level config,
+        // not a project root
+        if dir != user_home && (dir.join(".claudio").is_dir() || dir.join(".git").is_dir()) {
             return Some(dir.to_path_buf());
         }
 
@@ -175,6 +181,53 @@ mod tests {
 
         unsafe {
             env::remove_var(CLAUDIO_HOME_DIR_ENV_VAR);
+        }
+    }
+
+    #[test]
+    fn test_find_project_root_excludes_user_home() {
+        // Create a temporary directory structure:
+        // temp/
+        //   .claudio/  (simulating user home)
+        //   project/
+        //     .git/
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_path = temp_dir.path();
+
+        // Create .claudio in the temp root (simulating user home with ~/.claudio)
+        std::fs::create_dir(temp_path.join(".claudio")).unwrap();
+
+        // Create a project subdirectory with .git
+        let project_dir = temp_path.join("project");
+        std::fs::create_dir(&project_dir).unwrap();
+        std::fs::create_dir(project_dir.join(".git")).unwrap();
+
+        // When searching from the project directory, it should find the project root,
+        // not traverse up to the temp root (which has .claudio)
+        let result = find_project_root(Some(&project_dir));
+
+        assert_eq!(result, Some(project_dir.clone()));
+    }
+
+    #[test]
+    fn test_find_project_root_at_actual_user_home() {
+        // This test verifies that when .claudio exists in the actual user's home directory,
+        // it is not considered a project root
+        let home = BaseDirs::new().unwrap().home_dir().to_path_buf();
+
+        // If ~/.claudio exists (which it likely does), searching from a subdirectory
+        // should not return the home directory as a project root
+        if home.join(".claudio").exists() {
+            let result = find_project_root(Some(&home));
+
+            // Should not find home directory itself as a project root even if it has .claudio
+            // (Note: this might return None, or it might find a parent .git if the home is inside a git repo)
+            if let Some(root) = result {
+                assert_ne!(
+                    root, home,
+                    "User home directory should not be considered a project root even with ~/.claudio"
+                );
+            }
         }
     }
 }

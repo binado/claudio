@@ -105,29 +105,39 @@ claudio preset list
 claudio preset list --scope user
 claudio preset list --scope project
 
-# Verbose output with full details
-claudio preset list --verbose
+# Show all fields
+claudio preset list --fields all
 
-# Search for a specific preset
+# Filter by preset name (exact match)
 claudio preset list minimax-fast
 
 # Custom fields display
 claudio preset list --fields name,description,filepath
-claudio preset list --fields all
+
+# Limit table width
+claudio preset list --max-width 100
+
+# Output as JSON for scripting
+claudio preset list --json
+claudio preset list --json | jq '.items[] | select(.is_default == true)'
 ```
 
 **Example output:**
 ```
-Available presets:
+=== User Presets ===
+Location: /Users/you/.claudio/presets
 
-User (~/.claudio/presets/):
-  minimax-fast           Minimax with MCPs disabled for speed
-  openrouter             OpenRouter API for multiple models
+Name          Description                           Filepath
+* minimax-fast Minimax with MCPs disabled for speed  /Users/you/.claudio/presets/minimax-fast.json
+openrouter     OpenRouter API for multiple models    /Users/you/.claudio/presets/openrouter.json
 
-Project (./.claudio/presets/):
-  code-review            Code review with custom settings
+=== Project Presets ===
+Location: /path/to/repo/.claudio/presets
 
-3 presets found
+Name        Description                      Filepath
+code-review Code review with custom settings /path/to/repo/.claudio/presets/code-review.json
+
+* indicates default preset
 ```
 </details>
 

@@ -127,16 +127,16 @@ fn run(cli: Cli, color_config: ColorConfig) -> Result<ExitCode> {
             PresetCommands::List {
                 scope,
                 name,
-                verbose,
                 fields,
-                prompt_max_length,
+                max_width,
+                json,
             } => {
                 crate::commands::list::list(
                     scope.scope.into(),
                     name.as_deref(),
-                    *verbose,
                     fields.as_deref(),
-                    *prompt_max_length,
+                    *max_width,
+                    *json,
                     &color_config,
                 )?;
                 ExitCode::SUCCESS

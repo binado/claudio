@@ -5,7 +5,9 @@ use claudio_core::scope::Scope as CoreScope;
 
 #[derive(Debug, Clone, Copy, PartialEq, ValueEnum)]
 pub enum Scope {
-    /// Use the default resolution behavior (project shadows user for reads).
+    /// Use the default resolution behavior.
+    /// For 'run': Project shadows user (first match wins).
+    /// For 'list': Shows presets from both scopes (unless project settings set ignore_user_presets).
     Auto,
     /// Only use project-local presets from `./.claudio/presets`.
     Project,
@@ -130,25 +132,25 @@ pub enum Commands {
 pub enum PresetCommands {
     /// List all available presets (optionally filter by name)
     List {
-        /// Optional preset name to filter by (prints matching preset file paths)
+        /// Optional preset name to filter by (exact match)
         name: Option<String>,
 
         #[command(flatten)]
         scope: ScopeArgs,
 
-        /// Show verbose output
-        #[arg(short, long)]
-        verbose: bool,
-
-        /// Custom fields to display (comma-separated or multiple flags)
+        /// Custom fields to display (table columns; also filters `--json` item fields)
         /// Available: name, description, filepath, env, args, extends, prompt
         /// Use "all" to display all available fields
         #[arg(long, value_delimiter = ',')]
         fields: Option<Vec<String>>,
 
-        /// Maximum length for prompt field before truncation (0 = no truncation)
-        #[arg(long, default_value_t = 30)]
-        prompt_max_length: usize,
+        /// Maximum table width (0 = no explicit limit; ignored with `--json`)
+        #[arg(long, default_value_t = 0)]
+        max_width: usize,
+
+        /// Output as JSON for scripting and automation
+        #[arg(long)]
+        json: bool,
     },
     /// Show details of a specific preset
     Show {

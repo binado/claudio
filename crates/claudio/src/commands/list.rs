@@ -1,14 +1,56 @@
 use crate::color::ColorConfig;
 use anyhow::Result;
-use claudio_core::preset::types::Preset;
 use claudio_core::preset::{dirs, io};
 use claudio_core::scope::Scope;
 use claudio_core::settings::loader as settings_loader;
 use comfy_table::{Attribute, Cell, CellAlignment, ContentArrangement, Table};
+use serde::Serialize;
 use std::borrow::Cow;
-use std::path::PathBuf;
 
 use crate::commands::effective_read_scope;
+
+// JSON output structures
+#[derive(Serialize)]
+struct PresetListItem {
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    filepath: Option<String>,
+    scope: String,  // "project" | "user"
+    source: String, // "file" | "inline"
+    is_default: bool,
+    // Optional extra fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    env_keys: Option<Vec<String>>, // keys only; do not emit values
+    #[serde(skip_serializing_if = "Option::is_none")]
+    args: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    extends: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    prompt: Option<String>,
+}
+
+#[derive(Serialize)]
+struct InvalidPresetFile {
+    path: String,
+    error: String,
+}
+
+#[derive(Serialize)]
+struct PresetListOutput {
+    items: Vec<PresetListItem>,
+    default_preset: Option<String>,
+    scopes: Vec<String>,
+    invalid_files: Vec<InvalidPresetFile>,
+}
+
+fn should_include_json_field(validated_fields: &Option<Vec<String>>, field: &str) -> bool {
+    match validated_fields {
+        None => true,
+        Some(fields) => fields.iter().any(|f| f == field),
+    }
+}
 
 fn validate_fields(fields: &[String]) -> Result<Vec<String>> {
     const VALID_FIELDS: &[&str] = &[
@@ -59,22 +101,9 @@ fn field_to_header(field: &str) -> &str {
     }
 }
 
-fn get_display_fields<'a>(
-    validated_fields: &'a Option<Vec<String>>,
-    verbose: bool,
-) -> Cow<'a, [String]> {
+fn get_display_fields<'a>(validated_fields: &'a Option<Vec<String>>) -> Cow<'a, [String]> {
     if let Some(validated) = validated_fields {
         Cow::Borrowed(validated)
-    } else if verbose {
-        Cow::Owned(vec![
-            "name".to_string(),
-            "description".to_string(),
-            "filepath".to_string(),
-            "env".to_string(),
-            "args".to_string(),
-            "extends".to_string(),
-            "prompt".to_string(),
-        ])
     } else {
         Cow::Owned(vec![
             "name".to_string(),
@@ -85,44 +114,42 @@ fn get_display_fields<'a>(
 }
 
 fn build_row(
-    preset: &Preset,
+    item: &PresetListItem,
     filepath_display: &str,
     fields: &[String],
-    prompt_max_length: usize,
+    default_preset: Option<&str>,
+    color_config: &ColorConfig,
 ) -> Vec<Cell> {
     fields
         .iter()
-        .map(|field| {
-            let value = match field.as_str() {
-                "name" => preset.name.clone(),
-                "description" => preset.description.as_deref().unwrap_or("").to_string(),
-                "filepath" => filepath_display.to_string(),
-                "env" => preset
-                    .env
-                    .as_ref()
-                    .map(|e| e.keys().map(|k| k.as_str()).collect::<Vec<_>>().join(", "))
-                    .unwrap_or_default(),
-                "args" => preset
-                    .args
-                    .as_ref()
-                    .map(|a| a.join(", "))
-                    .unwrap_or_default(),
-                "extends" => preset.extends.as_deref().unwrap_or("none").to_string(),
-                "prompt" => preset
-                    .prompt
-                    .as_deref()
-                    .map(|p| {
-                        if prompt_max_length > 0 && p.chars().count() > prompt_max_length {
-                            let truncated: String = p.chars().take(prompt_max_length).collect();
-                            format!("{}...", truncated)
-                        } else {
-                            p.to_string()
-                        }
-                    })
-                    .unwrap_or_default(),
-                _ => String::new(),
-            };
-            Cell::new(value).set_alignment(CellAlignment::Left)
+        .map(|field| match field.as_str() {
+            "name" => {
+                let name = &item.name;
+                let display_name = if Some(name.as_str()) == default_preset {
+                    format!("* {}", name)
+                } else {
+                    name.clone()
+                };
+                let mut cell = Cell::new(display_name).set_alignment(CellAlignment::Left);
+                if Some(name.as_str()) == default_preset && color_config.enabled {
+                    cell = cell
+                        .fg(color_config.highlight_color.to_comfy_color())
+                        .add_attribute(Attribute::Bold);
+                }
+                cell
+            }
+            field_name => {
+                let value = match field_name {
+                    "description" => item.description.as_deref().unwrap_or("").to_string(),
+                    "filepath" => filepath_display.to_string(),
+                    "env" => String::new(),
+                    "args" => item.args.as_ref().map(|a| a.join(", ")).unwrap_or_default(),
+                    "extends" => item.extends.as_deref().unwrap_or("none").to_string(),
+                    "prompt" => item.prompt.as_deref().unwrap_or("").to_string(),
+                    _ => String::new(),
+                };
+                Cell::new(value).set_alignment(CellAlignment::Left)
+            }
         })
         .collect()
 }
@@ -130,25 +157,58 @@ fn build_row(
 pub fn list(
     scope: Scope,
     preset: Option<&str>,
-    verbose: bool,
     fields: Option<&[String]>,
-    prompt_max_length: usize,
+    max_width: usize,
+    json: bool,
     color_config: &ColorConfig,
 ) -> Result<()> {
     let effective_scope = effective_read_scope(scope);
     let preset_dirs = dirs::get_preset_dirs_scoped(effective_scope)?;
 
-    // Validate fields once before processing any directories
+    // Pre-compute user directory path for accurate scope labeling in Auto mode
+    let user_dir_path = dirs::get_preset_dirs_scoped(Scope::User)
+        .ok()
+        .and_then(|mut dirs| dirs.pop());
+
+    if max_width > u16::MAX as usize {
+        anyhow::bail!("--max-width must be <= {}", u16::MAX);
+    }
+
+    // Load default preset to highlight it
+    let default_preset = settings_loader::resolve_default_preset(effective_scope)
+        .ok()
+        .flatten();
+
+    // Validate fields once before processing
     let validated_fields = if let Some(custom_fields) = fields {
         Some(validate_fields(custom_fields)?)
     } else {
         None
     };
 
-    let mut skipped_count = 0;
+    // Unified data collection
+    let mut all_items: Vec<PresetListItem> = Vec::new();
+    let mut invalid_files: Vec<InvalidPresetFile> = Vec::new();
+    let mut scopes_used: Vec<String> = Vec::new();
 
-    for dir in &preset_dirs {
-        let mut dir_presets = Vec::<(PathBuf, Preset)>::new();
+    // Collect file-based presets with proper scope labeling
+    for dir in preset_dirs.iter() {
+        // Determine scope label based on known order (not CWD-based)
+        let scope_label = match effective_scope {
+            Scope::Project => "project",
+            Scope::User => "user",
+            Scope::Auto => {
+                if user_dir_path.as_ref() == Some(dir) {
+                    "user"
+                } else {
+                    "project"
+                }
+            }
+        };
+
+        if !scopes_used.iter().any(|s| s == scope_label) {
+            scopes_used.push(scope_label.to_string());
+        }
 
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
@@ -161,78 +221,53 @@ pub fn list(
                 match io::load_preset(&path) {
                     Ok(preset_obj) => {
                         if preset.is_none() || preset_obj.name == preset.unwrap() {
-                            dir_presets.push((path, preset_obj));
+                            let is_default = Some(&preset_obj.name) == default_preset.as_ref();
+
+                            all_items.push(PresetListItem {
+                                name: preset_obj.name.clone(),
+                                description: should_include_json_field(
+                                    &validated_fields,
+                                    "description",
+                                )
+                                .then(|| preset_obj.description.clone())
+                                .flatten(),
+                                filepath: should_include_json_field(&validated_fields, "filepath")
+                                    .then(|| path.display().to_string()),
+                                scope: scope_label.to_string(),
+                                source: "file".to_string(),
+                                is_default,
+                                env_keys: should_include_json_field(&validated_fields, "env")
+                                    .then(|| {
+                                        preset_obj
+                                            .env
+                                            .as_ref()
+                                            .map(|e| e.keys().map(|k| k.to_string()).collect())
+                                    })
+                                    .flatten(),
+                                args: should_include_json_field(&validated_fields, "args")
+                                    .then(|| preset_obj.args.clone())
+                                    .flatten(),
+                                extends: should_include_json_field(&validated_fields, "extends")
+                                    .then(|| preset_obj.extends.clone())
+                                    .flatten(),
+                                prompt: should_include_json_field(&validated_fields, "prompt")
+                                    .then(|| preset_obj.prompt.clone())
+                                    .flatten(),
+                            });
                         }
                     }
                     Err(err) => {
-                        skipped_count += 1;
-                        if verbose {
-                            eprintln!("Warning: invalid preset file: {} ({})", path.display(), err);
-                        }
+                        invalid_files.push(InvalidPresetFile {
+                            path: path.display().to_string(),
+                            error: err.to_string(),
+                        });
                     }
                 }
             }
         }
-
-        if dir_presets.is_empty() {
-            continue;
-        }
-
-        let cwd = std::env::current_dir().ok();
-        let source = if cwd.as_ref().is_some_and(|c| dir.starts_with(c)) {
-            "Project"
-        } else {
-            "User"
-        };
-
-        println!("{} ({}):", source, dir.display());
-
-        let mut table = Table::new();
-        table
-            .load_preset(comfy_table::presets::NOTHING)
-            .set_content_arrangement(ContentArrangement::Disabled);
-
-        // Determine which fields to display
-        let display_fields = get_display_fields(&validated_fields, verbose);
-
-        // Set headers based on display_fields with explicit left alignment
-        // Use comfy-table's native styling to ensure proper width calculation
-        let headers: Vec<Cell> = display_fields
-            .iter()
-            .map(|f| {
-                let cell = Cell::new(field_to_header(f)).set_alignment(CellAlignment::Left);
-                if color_config.enabled {
-                    cell.fg(color_config.highlight_color.to_comfy_color())
-                        .add_attribute(Attribute::Bold)
-                } else {
-                    cell
-                }
-            })
-            .collect();
-        table.set_header(headers);
-
-        // Build rows dynamically based on display_fields
-        for (path, preset_obj) in &dir_presets {
-            let filepath_display = path.display().to_string();
-            let row = build_row(
-                preset_obj,
-                &filepath_display,
-                &display_fields,
-                prompt_max_length,
-            );
-            table.add_row(row);
-        }
-
-        // Print table lines
-        for line in table.lines() {
-            println!("{}", line);
-        }
-        println!();
     }
 
-    // Inline presets (from settings)
-    let mut inline_project: Vec<Preset> = Vec::new();
-    let mut inline_user: Vec<Preset> = Vec::new();
+    // Collect inline presets
     for (origin, preset_obj) in settings_loader::load_inline_presets_scoped(effective_scope)? {
         if let Some(filter_name) = preset
             && preset_obj.name != filter_name
@@ -240,71 +275,221 @@ pub fn list(
             continue;
         }
 
-        match origin {
-            Scope::Project => inline_project.push(preset_obj),
-            Scope::User => inline_user.push(preset_obj),
+        let scope_label = match origin {
+            Scope::Project => "project",
+            Scope::User => "user",
             Scope::Auto => unreachable!(
                 "Scope::Auto should not be returned as an origin by load_inline_presets_scoped"
             ),
-        }
-    }
-
-    let inline_sections: Vec<(&str, Vec<Preset>)> = match effective_scope {
-        Scope::Project => vec![("Inline", inline_project)],
-        Scope::User => vec![("Inline", inline_user)],
-        Scope::Auto => vec![
-            ("Inline (project)", inline_project),
-            ("Inline (user)", inline_user),
-        ],
-    };
-
-    for (label, presets) in inline_sections {
-        if presets.is_empty() {
-            continue;
-        }
-
-        println!("{}:", label);
-
-        let mut table = Table::new();
-        table
-            .load_preset(comfy_table::presets::NOTHING)
-            .set_content_arrangement(ContentArrangement::Disabled);
-
-        // Determine which fields to display
-        let display_fields = get_display_fields(&validated_fields, verbose);
-
-        let headers: Vec<Cell> = display_fields
-            .iter()
-            .map(|f| {
-                let cell = Cell::new(field_to_header(f)).set_alignment(CellAlignment::Left);
-                if color_config.enabled {
-                    cell.fg(color_config.highlight_color.to_comfy_color())
-                        .add_attribute(Attribute::Bold)
-                } else {
-                    cell
-                }
-            })
-            .collect();
-        table.set_header(headers);
-
-        for preset_obj in &presets {
-            let row = build_row(preset_obj, "(inline)", &display_fields, prompt_max_length);
-            table.add_row(row);
-        }
-
-        for line in table.lines() {
-            println!("{}", line);
-        }
-        println!();
-    }
-
-    if skipped_count > 0 && !verbose {
-        let msg = if skipped_count == 1 {
-            "1 invalid preset file skipped".to_string()
-        } else {
-            format!("{} invalid preset files skipped", skipped_count)
         };
-        eprintln!("({}, use --verbose to see details)", msg);
+
+        if !scopes_used.iter().any(|s| s == scope_label) {
+            scopes_used.push(scope_label.to_string());
+        }
+
+        let is_default = Some(&preset_obj.name) == default_preset.as_ref();
+
+        all_items.push(PresetListItem {
+            name: preset_obj.name.clone(),
+            description: should_include_json_field(&validated_fields, "description")
+                .then(|| preset_obj.description.clone())
+                .flatten(),
+            filepath: None,
+            scope: scope_label.to_string(),
+            source: "inline".to_string(),
+            is_default,
+            env_keys: should_include_json_field(&validated_fields, "env")
+                .then(|| {
+                    preset_obj
+                        .env
+                        .as_ref()
+                        .map(|e| e.keys().map(|k| k.to_string()).collect())
+                })
+                .flatten(),
+            args: should_include_json_field(&validated_fields, "args")
+                .then(|| preset_obj.args.clone())
+                .flatten(),
+            extends: should_include_json_field(&validated_fields, "extends")
+                .then(|| preset_obj.extends.clone())
+                .flatten(),
+            prompt: should_include_json_field(&validated_fields, "prompt")
+                .then(|| preset_obj.prompt.clone())
+                .flatten(),
+        });
+    }
+
+    // Output based on format
+    if json {
+        all_items.sort_by(|a, b| a.scope.cmp(&b.scope).then(a.name.cmp(&b.name)));
+        let output = PresetListOutput {
+            items: all_items,
+            default_preset,
+            scopes: scopes_used,
+            invalid_files,
+        };
+        serde_json::to_writer_pretty(std::io::stdout(), &output)?;
+        println!();
+    } else {
+        // Table output
+        let display_fields = get_display_fields(&validated_fields);
+        let show_default_legend = display_fields.iter().any(|f| f == "name");
+
+        // Group items by scope and source for display
+        let mut default_was_rendered = false;
+
+        // Display file-based presets grouped by scope
+        for scope_label in &["project", "user"] {
+            let scope_items: Vec<&PresetListItem> = all_items
+                .iter()
+                .filter(|item| item.source == "file" && item.scope == *scope_label)
+                .collect();
+
+            if scope_items.is_empty() {
+                continue;
+            }
+
+            let mut table = Table::new();
+            table.load_preset(comfy_table::presets::NOTHING);
+
+            // Apply max width if specified
+            if max_width > 0 {
+                table
+                    .set_content_arrangement(ContentArrangement::DynamicFullWidth)
+                    .set_width(max_width as u16);
+            } else {
+                table.set_content_arrangement(ContentArrangement::Disabled);
+            }
+
+            // Set headers
+            let headers: Vec<Cell> = display_fields
+                .iter()
+                .map(|f| {
+                    let cell = Cell::new(field_to_header(f)).set_alignment(CellAlignment::Left);
+                    if color_config.enabled {
+                        cell.fg(color_config.highlight_color.to_comfy_color())
+                            .add_attribute(Attribute::Bold)
+                    } else {
+                        cell
+                    }
+                })
+                .collect();
+            table.set_header(headers);
+
+            // Build rows
+            for item in scope_items {
+                if show_default_legend && item.is_default {
+                    default_was_rendered = true;
+                }
+
+                let filepath_display = item.filepath.as_deref().unwrap_or("");
+                let row = build_row(
+                    item,
+                    filepath_display,
+                    &display_fields,
+                    default_preset.as_deref(),
+                    color_config,
+                );
+                table.add_row(row);
+            }
+
+            for line in table.lines() {
+                println!("{}", line);
+            }
+            println!();
+        }
+
+        // Display inline presets grouped by scope
+        for scope_label in &["project", "user"] {
+            let inline_items: Vec<&PresetListItem> = all_items
+                .iter()
+                .filter(|item| item.source == "inline" && item.scope == *scope_label)
+                .collect();
+
+            if inline_items.is_empty() {
+                continue;
+            }
+
+            let label = match effective_scope {
+                Scope::Project | Scope::User => "Inline",
+                Scope::Auto => {
+                    if *scope_label == "project" {
+                        "Inline (project)"
+                    } else {
+                        "Inline (user)"
+                    }
+                }
+            };
+
+            // Enhanced section header
+            let header = format!("=== {} ===", label);
+            if color_config.enabled {
+                println!("\n{}", color_config.highlight(&header));
+            } else {
+                println!("\n{}", header);
+            }
+            println!();
+
+            let mut table = Table::new();
+            table.load_preset(comfy_table::presets::NOTHING);
+
+            // Apply max width if specified
+            if max_width > 0 {
+                table
+                    .set_content_arrangement(ContentArrangement::DynamicFullWidth)
+                    .set_width(max_width as u16);
+            } else {
+                table.set_content_arrangement(ContentArrangement::Disabled);
+            }
+
+            let headers: Vec<Cell> = display_fields
+                .iter()
+                .map(|f| {
+                    let cell = Cell::new(field_to_header(f)).set_alignment(CellAlignment::Left);
+                    if color_config.enabled {
+                        cell.fg(color_config.highlight_color.to_comfy_color())
+                            .add_attribute(Attribute::Bold)
+                    } else {
+                        cell
+                    }
+                })
+                .collect();
+            table.set_header(headers);
+
+            for item in inline_items {
+                if show_default_legend && item.is_default {
+                    default_was_rendered = true;
+                }
+
+                let row = build_row(
+                    item,
+                    "(inline)",
+                    &display_fields,
+                    default_preset.as_deref(),
+                    color_config,
+                );
+                table.add_row(row);
+            }
+
+            for line in table.lines() {
+                println!("{}", line);
+            }
+            println!();
+        }
+
+        // Print legend if default preset was shown
+        if show_default_legend && default_was_rendered {
+            println!("* indicates default preset");
+        }
+
+        // Print invalid files summary
+        if !invalid_files.is_empty() {
+            let msg = if invalid_files.len() == 1 {
+                "1 invalid preset file skipped".to_string()
+            } else {
+                format!("{} invalid preset files skipped", invalid_files.len())
+            };
+            eprintln!("\n({}, run `claudio doctor` for details)", msg);
+        }
     }
 
     Ok(())

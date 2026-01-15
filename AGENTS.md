@@ -91,13 +91,14 @@ Behavior:
 List available presets.
 
 ```bash
-claudio preset list [NAME] [--scope SCOPE] [--verbose] [--fields FIELDS]
+claudio preset list [NAME] [--scope SCOPE] [--fields FIELDS] [--max-width N] [--json]
 ```
 
 Options:
 - `NAME` - Filter by preset name
-- `--verbose` - Show detailed information
-- `--fields` - Customize displayed fields (name, description, filepath, env, args, extends, prompt)
+- `--fields` - Customize displayed fields (name, description, filepath, env, args, extends, prompt); also filters `--json` item fields
+- `--max-width` - Limit table width (ignored with `--json`)
+- `--json` - Output as JSON for scripting and automation
 
 ### `claudio preset show <preset>`
 

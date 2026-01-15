@@ -837,3 +837,338 @@ fn test_init_force_dry_run_does_not_create_files() {
         stderr
     );
 }
+
+#[test]
+#[serial]
+fn test_preset_list_json_output() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+    env.create_user_config();
+
+    // Create test presets in both scopes
+    env.write_project_preset(
+        "project-preset",
+        r#"{
+  "name": "project-preset",
+  "description": "Project test preset",
+  "env": {
+    "TEST_VAR": "secret_value",
+    "ANOTHER_VAR": "another_secret"
+  },
+  "args": ["--verbose"],
+  "extends": null
+}"#,
+    );
+
+    env.write_user_preset(
+        "user-preset",
+        r#"{
+  "name": "user-preset",
+  "description": "User test preset",
+  "env": {
+    "USER_VAR": "user_secret"
+  },
+  "prompt": "test prompt"
+}"#,
+    );
+
+    // Set default preset
+    let settings_path = env.project_dir.join(".claudio").join("settings.json");
+    std::fs::write(
+        &settings_path,
+        r#"{
+  "default_preset": "project-preset",
+  "color": "cyan",
+  "no_color": false,
+  "require_preset": false,
+  "ignore_user_presets": false,
+  "dry_run_show_env": true,
+  "claude_executable": "claude",
+  "presets": []
+}"#,
+    )
+    .unwrap();
+
+    // Run preset list with --json flag
+    let output = run_claudio(
+        &env.project_dir,
+        &["preset", "list", "--json"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Preset list --json command failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify JSON output is valid
+    let json: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
+    assert!(
+        json.is_ok(),
+        "Preset list JSON output is not valid JSON:\n{}",
+        stdout
+    );
+
+    let json_obj = json.unwrap();
+
+    // Verify top-level structure
+    assert!(
+        json_obj.get("items").is_some(),
+        "Expected 'items' field in JSON"
+    );
+    assert!(
+        json_obj.get("default_preset").is_some(),
+        "Expected 'default_preset' field in JSON"
+    );
+    assert!(
+        json_obj.get("scopes").is_some(),
+        "Expected 'scopes' field in JSON"
+    );
+    assert!(
+        json_obj.get("invalid_files").is_some(),
+        "Expected 'invalid_files' field in JSON"
+    );
+
+    // Verify default_preset is set correctly
+    assert_eq!(
+        json_obj.get("default_preset").and_then(|v| v.as_str()),
+        Some("project-preset"),
+        "Expected default_preset to be 'project-preset'"
+    );
+
+    // Verify items array
+    let items = json_obj
+        .get("items")
+        .and_then(|v| v.as_array())
+        .expect("Expected items to be an array");
+
+    assert!(
+        items.len() >= 2,
+        "Expected at least 2 presets (project and user)"
+    );
+
+    // Find project-preset in items
+    let project_preset = items
+        .iter()
+        .find(|item| item.get("name").and_then(|v| v.as_str()) == Some("project-preset"))
+        .expect("Expected to find project-preset in items");
+
+    // Verify project-preset fields
+    assert_eq!(
+        project_preset.get("description").and_then(|v| v.as_str()),
+        Some("Project test preset")
+    );
+    assert_eq!(
+        project_preset.get("scope").and_then(|v| v.as_str()),
+        Some("project")
+    );
+    assert_eq!(
+        project_preset.get("source").and_then(|v| v.as_str()),
+        Some("file")
+    );
+    assert_eq!(
+        project_preset.get("is_default").and_then(|v| v.as_bool()),
+        Some(true)
+    );
+
+    // Verify filepath is present
+    assert!(
+        project_preset.get("filepath").is_some(),
+        "Expected filepath to be present"
+    );
+
+    // CRITICAL: Verify env_keys are present but NOT env values (security check)
+    let env_keys = project_preset
+        .get("env_keys")
+        .and_then(|v| v.as_array())
+        .expect("Expected env_keys array");
+
+    assert!(
+        env_keys.iter().any(|k| k.as_str() == Some("TEST_VAR")),
+        "Expected TEST_VAR in env_keys"
+    );
+    assert!(
+        env_keys.iter().any(|k| k.as_str() == Some("ANOTHER_VAR")),
+        "Expected ANOTHER_VAR in env_keys"
+    );
+
+    // CRITICAL SECURITY CHECK: Ensure no env VALUES are leaked
+    let json_str = serde_json::to_string(&json_obj).unwrap();
+    assert!(
+        !json_str.contains("secret_value"),
+        "ERROR: Env value 'secret_value' leaked in JSON output"
+    );
+    assert!(
+        !json_str.contains("another_secret"),
+        "ERROR: Env value 'another_secret' leaked in JSON output"
+    );
+    assert!(
+        !json_str.contains("user_secret"),
+        "ERROR: Env value 'user_secret' leaked in JSON output"
+    );
+
+    // Verify args array
+    let args = project_preset
+        .get("args")
+        .and_then(|v| v.as_array())
+        .expect("Expected args array");
+    assert!(
+        args.iter().any(|a| a.as_str() == Some("--verbose")),
+        "Expected --verbose in args"
+    );
+
+    // Find user-preset in items
+    let user_preset = items
+        .iter()
+        .find(|item| item.get("name").and_then(|v| v.as_str()) == Some("user-preset"))
+        .expect("Expected to find user-preset in items");
+
+    // Verify user-preset fields
+    assert_eq!(
+        user_preset.get("scope").and_then(|v| v.as_str()),
+        Some("user")
+    );
+    assert_eq!(
+        user_preset.get("is_default").and_then(|v| v.as_bool()),
+        Some(false),
+        "User preset should NOT be marked as default"
+    );
+
+    // Verify prompt field is present for user-preset
+    assert_eq!(
+        user_preset.get("prompt").and_then(|v| v.as_str()),
+        Some("test prompt")
+    );
+}
+
+#[test]
+#[serial]
+fn test_preset_list_json_respects_fields() {
+    let env = TestEnvironment::new();
+    env.create_project_config();
+    env.create_user_config();
+
+    env.write_project_preset(
+        "project-preset",
+        r#"{
+  "name": "project-preset",
+  "description": "Project test preset",
+  "env": {
+    "TEST_VAR": "secret_value"
+  },
+  "args": ["--verbose"]
+}"#,
+    );
+
+    env.write_user_preset(
+        "user-preset",
+        r#"{
+  "name": "user-preset",
+  "description": "User test preset",
+  "env": {
+    "USER_VAR": "user_secret"
+  },
+  "prompt": "test prompt"
+}"#,
+    );
+
+    let output = run_claudio(
+        &env.project_dir,
+        &["preset", "list", "--json", "--fields", "name,filepath"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Preset list --json --fields command failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Expected valid JSON output");
+
+    let items = json
+        .get("items")
+        .and_then(|v| v.as_array())
+        .expect("Expected items to be an array");
+
+    let project_preset = items
+        .iter()
+        .find(|item| item.get("name").and_then(|v| v.as_str()) == Some("project-preset"))
+        .expect("Expected to find project-preset in items");
+
+    // Only name + filepath should be present (plus metadata like scope/source/is_default).
+    assert!(project_preset.get("filepath").is_some());
+    assert!(project_preset.get("description").is_none());
+    assert!(project_preset.get("env_keys").is_none());
+    assert!(project_preset.get("args").is_none());
+    assert!(project_preset.get("prompt").is_none());
+}
+
+#[test]
+#[serial]
+fn test_preset_list_auto_scope_without_project_root_marks_user_scope() {
+    let env = TestEnvironment::new();
+    env.create_user_config();
+
+    env.write_user_preset(
+        "user-only",
+        r#"{
+  "name": "user-only",
+  "description": "User preset"
+}"#,
+    );
+
+    // Run from a directory without `.claudio/` or `.git/` so `Scope::Auto` resolves to user-only.
+    let output = run_claudio(
+        env.temp_dir.path(),
+        &["preset", "list", "--json"],
+        &[(CLAUDIO_HOME_DIR_ENV_VAR, env.home_dir.to_str().unwrap())],
+    );
+
+    assert!(
+        output.status.success(),
+        "Preset list --json command failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Expected valid JSON output");
+
+    let items = json
+        .get("items")
+        .and_then(|v| v.as_array())
+        .expect("Expected items to be an array");
+
+    let user_preset = items
+        .iter()
+        .find(|item| item.get("name").and_then(|v| v.as_str()) == Some("user-only"))
+        .expect("Expected to find user-only in items");
+
+    assert_eq!(
+        user_preset.get("scope").and_then(|v| v.as_str()),
+        Some("user")
+    );
+
+    let scopes = json
+        .get("scopes")
+        .and_then(|v| v.as_array())
+        .expect("Expected scopes to be an array");
+
+    assert!(
+        scopes.iter().any(|s| s.as_str() == Some("user")),
+        "Expected 'user' in scopes"
+    );
+    assert!(
+        !scopes.iter().any(|s| s.as_str() == Some("project")),
+        "Did not expect 'project' in scopes"
+    );
+}
