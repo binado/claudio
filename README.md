@@ -105,15 +105,21 @@ claudio preset list
 claudio preset list --scope user
 claudio preset list --scope project
 
-# Verbose output with full details
-claudio preset list --verbose
+# Show all fields
+claudio preset list --fields all
 
-# Search for a specific preset
+# Filter by preset name (exact match)
 claudio preset list minimax-fast
 
 # Custom fields display
 claudio preset list --fields name,description,filepath
-claudio preset list --fields all
+
+# Limit table width
+claudio preset list --max-width 100
+
+# Output as JSON for scripting
+claudio preset list --json
+claudio preset list --json | jq '.items[] | select(.is_default == true)'
 ```
 
 **Example output:**
