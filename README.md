@@ -124,16 +124,20 @@ claudio preset list --json | jq '.items[] | select(.is_default == true)'
 
 **Example output:**
 ```
-Available presets:
+=== User Presets ===
+Location: /Users/you/.claudio/presets
 
-User (~/.claudio/presets/):
-  minimax-fast           Minimax with MCPs disabled for speed
-  openrouter             OpenRouter API for multiple models
+Name          Description                           Filepath
+* minimax-fast Minimax with MCPs disabled for speed  /Users/you/.claudio/presets/minimax-fast.json
+openrouter     OpenRouter API for multiple models    /Users/you/.claudio/presets/openrouter.json
 
-Project (./.claudio/presets/):
-  code-review            Code review with custom settings
+=== Project Presets ===
+Location: /path/to/repo/.claudio/presets
 
-3 presets found
+Name        Description                      Filepath
+code-review Code review with custom settings /path/to/repo/.claudio/presets/code-review.json
+
+* indicates default preset
 ```
 </details>
 

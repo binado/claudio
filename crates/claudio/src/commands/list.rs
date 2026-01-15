@@ -46,6 +46,13 @@ struct PresetListOutput {
     invalid_files: Vec<InvalidPresetFile>,
 }
 
+fn should_include_json_field(validated_fields: &Option<Vec<String>>, field: &str) -> bool {
+    match validated_fields {
+        None => true,
+        Some(fields) => fields.iter().any(|f| f == field),
+    }
+}
+
 fn validate_fields(fields: &[String]) -> Result<Vec<String>> {
     const VALID_FIELDS: &[&str] = &[
         "name",
@@ -164,6 +171,10 @@ pub fn list(
     let effective_scope = effective_read_scope(scope);
     let preset_dirs = dirs::get_preset_dirs_scoped(effective_scope)?;
 
+    if !json && max_width > u16::MAX as usize {
+        anyhow::bail!("--max-width must be <= {}", u16::MAX);
+    }
+
     // Load default preset to highlight it
     let default_preset = settings_loader::resolve_default_preset(effective_scope)
         .ok()
@@ -188,12 +199,17 @@ pub fn list(
             Scope::Project => "project",
             Scope::User => "user",
             Scope::Auto => {
-                // For Auto scope, first dir is project (if it exists), second is user
-                if dir_index == 0 { "project" } else { "user" }
+                // For Auto scope, the user dir is always last; project (if present) comes before it.
+                let user_dir_index = preset_dirs.len().saturating_sub(1);
+                if dir_index == user_dir_index {
+                    "user"
+                } else {
+                    "project"
+                }
             }
         };
 
-        if !scopes_used.contains(&scope_label.to_string()) {
+        if !scopes_used.iter().any(|s| s == scope_label) {
             scopes_used.push(scope_label.to_string());
         }
 
@@ -212,18 +228,34 @@ pub fn list(
 
                             all_items.push(PresetListItem {
                                 name: preset_obj.name.clone(),
-                                description: preset_obj.description.clone(),
-                                filepath: Some(path.display().to_string()),
+                                description: should_include_json_field(
+                                    &validated_fields,
+                                    "description",
+                                )
+                                .then(|| preset_obj.description.clone())
+                                .flatten(),
+                                filepath: should_include_json_field(&validated_fields, "filepath")
+                                    .then(|| path.display().to_string()),
                                 scope: scope_label.to_string(),
                                 source: "file".to_string(),
                                 is_default,
-                                env_keys: preset_obj
-                                    .env
-                                    .as_ref()
-                                    .map(|e| e.keys().map(|k| k.to_string()).collect()),
-                                args: preset_obj.args.clone(),
-                                extends: preset_obj.extends.clone(),
-                                prompt: preset_obj.prompt.clone(),
+                                env_keys: should_include_json_field(&validated_fields, "env")
+                                    .then(|| {
+                                        preset_obj
+                                            .env
+                                            .as_ref()
+                                            .map(|e| e.keys().map(|k| k.to_string()).collect())
+                                    })
+                                    .flatten(),
+                                args: should_include_json_field(&validated_fields, "args")
+                                    .then(|| preset_obj.args.clone())
+                                    .flatten(),
+                                extends: should_include_json_field(&validated_fields, "extends")
+                                    .then(|| preset_obj.extends.clone())
+                                    .flatten(),
+                                prompt: should_include_json_field(&validated_fields, "prompt")
+                                    .then(|| preset_obj.prompt.clone())
+                                    .flatten(),
                             });
                         }
                     }
@@ -254,7 +286,7 @@ pub fn list(
             ),
         };
 
-        if !scopes_used.contains(&scope_label.to_string()) {
+        if !scopes_used.iter().any(|s| s == scope_label) {
             scopes_used.push(scope_label.to_string());
         }
 
@@ -262,18 +294,30 @@ pub fn list(
 
         all_items.push(PresetListItem {
             name: preset_obj.name.clone(),
-            description: preset_obj.description.clone(),
+            description: should_include_json_field(&validated_fields, "description")
+                .then(|| preset_obj.description.clone())
+                .flatten(),
             filepath: None,
             scope: scope_label.to_string(),
             source: "inline".to_string(),
             is_default,
-            env_keys: preset_obj
-                .env
-                .as_ref()
-                .map(|e| e.keys().map(|k| k.to_string()).collect()),
-            args: preset_obj.args.clone(),
-            extends: preset_obj.extends.clone(),
-            prompt: preset_obj.prompt.clone(),
+            env_keys: should_include_json_field(&validated_fields, "env")
+                .then(|| {
+                    preset_obj
+                        .env
+                        .as_ref()
+                        .map(|e| e.keys().map(|k| k.to_string()).collect())
+                })
+                .flatten(),
+            args: should_include_json_field(&validated_fields, "args")
+                .then(|| preset_obj.args.clone())
+                .flatten(),
+            extends: should_include_json_field(&validated_fields, "extends")
+                .then(|| preset_obj.extends.clone())
+                .flatten(),
+            prompt: should_include_json_field(&validated_fields, "prompt")
+                .then(|| preset_obj.prompt.clone())
+                .flatten(),
         });
     }
 
@@ -289,6 +333,7 @@ pub fn list(
     } else {
         // Table output
         let display_fields = get_display_fields(&validated_fields);
+        let show_default_legend = display_fields.iter().any(|f| f == "name");
 
         // Group items by scope and source for display
         let mut default_was_rendered = false;
@@ -359,7 +404,7 @@ pub fn list(
 
             // Build rows
             for item in scope_items {
-                if item.is_default {
+                if show_default_legend && item.is_default {
                     default_was_rendered = true;
                 }
 
@@ -451,7 +496,7 @@ pub fn list(
             table.set_header(headers);
 
             for item in inline_items {
-                if item.is_default {
+                if show_default_legend && item.is_default {
                     default_was_rendered = true;
                 }
 
@@ -484,7 +529,7 @@ pub fn list(
         }
 
         // Print legend if default preset was shown
-        if default_was_rendered {
+        if show_default_legend && default_was_rendered {
             println!("* indicates default preset");
         }
 

@@ -138,13 +138,13 @@ pub enum PresetCommands {
         #[command(flatten)]
         scope: ScopeArgs,
 
-        /// Custom fields to display (comma-separated or multiple flags)
+        /// Custom fields to display (table columns; also filters `--json` item fields)
         /// Available: name, description, filepath, env, args, extends, prompt
         /// Use "all" to display all available fields
         #[arg(long, value_delimiter = ',')]
         fields: Option<Vec<String>>,
 
-        /// Maximum table width (0 = no explicit limit)
+        /// Maximum table width (0 = no explicit limit; ignored with `--json`)
         #[arg(long, default_value_t = 0)]
         max_width: usize,
 
