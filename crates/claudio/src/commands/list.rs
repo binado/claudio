@@ -348,32 +348,6 @@ pub fn list(
                 continue;
             }
 
-            // Find the corresponding directory for location display
-            let dir_path = if *scope_label == "project" {
-                preset_dirs.first()
-            } else {
-                preset_dirs.get(if preset_dirs.len() > 1 { 1 } else { 0 })
-            };
-
-            // Enhanced section header
-            let header = format!(
-                "=== {} Presets ===",
-                if *scope_label == "project" {
-                    "Project"
-                } else {
-                    "User"
-                }
-            );
-            if color_config.enabled {
-                println!("\n{}", color_config.highlight(&header));
-            } else {
-                println!("\n{}", header);
-            }
-            if let Some(dir) = dir_path {
-                println!("Location: {}", dir.display());
-            }
-            println!();
-
             let mut table = Table::new();
             table.load_preset(comfy_table::presets::NOTHING);
 
