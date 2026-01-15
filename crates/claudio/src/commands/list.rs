@@ -320,6 +320,7 @@ pub fn list(
 
     // Output based on format
     if json {
+        all_items.sort_by(|a, b| a.scope.cmp(&b.scope).then(a.name.cmp(&b.name)));
         let output = PresetListOutput {
             items: all_items,
             default_preset,
